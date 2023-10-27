@@ -1,0 +1,3 @@
+This is a compiler for an as of yet unnamed language somewhere in between Lisp and C.
+
+I'm designing it this way because Lisp is very easy to parse, and since I'm compiling to C, C semantics will be very easy to implement.
