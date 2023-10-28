@@ -56,7 +56,7 @@ void freeList(List *list) {
 
 /* Prints a list. Only works for char* list.
  */
-void print_list(List *list) {
+void printList(List *list) {
   printf("[");
   while (list != NULL) {
     printf("%s", (char *)list->head);
@@ -113,13 +113,13 @@ Expr *makeListExpr(List *list) {
   return expr;
 }
 
-Trie *gloabal_identifiers;
-void initialize_gloabal_identifiers() {
+Trie *gloabalIdentifiers;
+void initializeGloabalIdentifiers() {
   // this will cause a leak if called more than once (without freeing)
-  gloabal_identifiers = makeTrie();
-  trieAdd(gloabal_identifiers, "printf", makeValExpr(ValExpr, NULL));
-  trieAdd(gloabal_identifiers, "scanf", makeValExpr(ValExpr, NULL));
-  trieAdd(gloabal_identifiers, "add", makeValExpr(ValExpr, NULL));
+  gloabalIdentifiers = makeTrie();
+  trieAdd(gloabalIdentifiers, "printf", makeValExpr(ValExpr, NULL));
+  trieAdd(gloabalIdentifiers, "scanf", makeValExpr(ValExpr, NULL));
+  trieAdd(gloabalIdentifiers, "add", makeValExpr(ValExpr, NULL));
 }
 
 size_t skipWhitespace(char *source, size_t i) {
@@ -203,7 +203,7 @@ Expr *parseValue(char *source, size_t *ip) {
   exit(1);
 }
 
-char *read_source(char *filename) {
+char *readSource(char *filename) {
   FILE *fp = fopen(filename, "r");
   if (fp == NULL) {
     printf("Error opening file %s\n", filename);
@@ -219,7 +219,7 @@ char *read_source(char *filename) {
   return source;
 }
 
-void print_val_expr(Expr *expr) {
+void printValExpr(Expr *expr) {
   // //switch ((ValType)expr->subexprs) {
   // // switch (((Expr *)expr->subexprs)->etype) {
   // switch ((Val *((Expr *)expr->subexprs)->vtype) {
@@ -252,21 +252,21 @@ void print_val_expr(Expr *expr) {
   }
 }
 
-void print_ident_expr(Expr *expr) {
+void printIdentExpr(Expr *expr) {
   printf("%s\n", (char *)expr->subexprs);
 }
 
-void print_expr(Expr *expr) {
+void printExpr(Expr *expr) {
   if (expr == NULL) {
     printf("NULL\n");
     return;
   }
   switch (expr->etype) {
     case ValExpr:
-      print_val_expr(expr);
+      printValExpr(expr);
       break;
     case IdentExpr:
-      print_ident_expr(expr);
+      printIdentExpr(expr);
       break;
     default:
       printf("Unknown or unimplemented expr type\n");
@@ -292,16 +292,16 @@ int main(char argc, char **argv) {
 
 
   // List *l = makeList("1", makeList("2", makeList("3", NULL)));
-  // print_list(l);
+  // printList(l);
   // freeList(l);
 
   // List *l2;
 
-  char *source = read_source(argv[1]);
+  char *source = readSource(argv[1]);
   size_t si = 0;
   while (source[si] != '\0') {
     Expr *expr = parseValue(source, &si);
-    print_expr(expr);
+    printExpr(expr);
   }
 
   free(source);
