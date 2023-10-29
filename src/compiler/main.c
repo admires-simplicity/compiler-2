@@ -140,7 +140,12 @@ Expr *parseValue(char *source, size_t *ip) {
 
   i = skipWhitespace(source, i);
 
-  if (source == NULL || source[i] == '\0') {
+  if (source == NULL) {
+    printf("Error: source is NULL\n");
+    exit(1);
+  }
+
+  if (source[i] == '\0') {
     *ip = i;
     return NULL;
   }
@@ -152,7 +157,7 @@ Expr *parseValue(char *source, size_t *ip) {
     while (source[j] != '"') {
       j++;
     }
-    char *val = malloc(j - i);
+    char *val = malloc((j - i + 1) * sizeof(char));
     strncpy(val, source + i + 1, j - i - 1);
     val[j - i - 1] = '\0';
     *ip = j + 1;
@@ -177,11 +182,12 @@ Expr *parseValue(char *source, size_t *ip) {
     while (source[j] >= '0' && source[j] <= '9') {
       j++;
     }
-    char *val = malloc(j - i);
+    char *val = malloc((j - i + 1) * sizeof(char));
     strncpy(val, source + i, j - i);
     val[j - i] = '\0';
     int *int_val = malloc(sizeof(int));
     *int_val = atoi(val);
+    free(val);
     *ip = j;
     return makeValExpr(IntVal, int_val);
   }
@@ -192,7 +198,7 @@ Expr *parseValue(char *source, size_t *ip) {
     while (identChar(source[j])) {
       j++;
     }
-    char *ident = malloc(j - i);
+    char *ident = malloc((j - i + 1) * sizeof(char));
     strncpy(ident, source + i, j - i);
     ident[j - i] = '\0';
     *ip = j;
@@ -275,6 +281,65 @@ void printExpr(Expr *expr) {
 
 }
 
+void freeValue(Val *val) {
+  free(val->val);
+  free(val);
+}
+
+void freeExpr(Expr *expr) {
+  switch (expr->etype) {
+    case ValExpr:
+      freeValue(expr->subexprs);
+      break;
+    case IdentExpr:
+      free(expr->subexprs);
+      break;
+    case ApplyExpr:
+      freeExpr(((Expr **)expr->subexprs)[0]);
+      freeExpr(((Expr **)expr->subexprs)[1]);
+      free(expr->subexprs);
+      break;
+    case ListExpr:
+      freeList(expr->subexprs);
+      break;
+    default:
+      printf("Unknown or unimplemented expr type\n");
+      break;
+  }
+  free(expr);
+}
+
+void freeExprList(List *list) {
+  if (list->tail != NULL) {
+    freeExprList(list->tail);
+  }
+  freeExpr(list->head);
+  free(list);
+}
+
+void reverseList(List **list) {
+  List *prev = NULL;
+  List *curr = *list;
+  List *next = NULL;
+  while (curr != NULL) {
+    next = curr->tail;
+    curr->tail = prev;
+    prev = curr;
+    curr = next;
+  }
+  *list = prev;
+}
+
+void map(List *list, void (*f)(Expr *)) {
+  while (list != NULL) {
+    f(list->head);
+    list = list->tail;
+  }
+}
+
+void println(char *str) {
+  printf("%s\n", str);
+}
 
 int main(char argc, char **argv) {
   // char *a = "hello";
@@ -297,12 +362,34 @@ int main(char argc, char **argv) {
 
   // List *l2;
 
+
+  // List *l = makeList("a", makeList("b", makeList("c", NULL)));
+  // printList(l);
+
+  // map(l, (void*)&println);
+
+  // reverseList(&l);
+  // printList(l);
+  // map(l, (void*)&println);
+
+
+  // freeList(l);
+
+
+
+  List *program = NULL;
+
   char *source = readSource(argv[1]);
   size_t si = 0;
   while (source[si] != '\0') {
-    Expr *expr = parseValue(source, &si);
-    printExpr(expr);
+    Expr *expr = parseValue(source, &si); 
+    if (expr != NULL) program = makeList(expr, program);
   }
+
+  reverseList(&program);
+  map(program, &printExpr);
+
+  freeExprList(program);
 
   free(source);
 }
