@@ -342,40 +342,10 @@ void println(char *str) {
 }
 
 int main(char argc, char **argv) {
-  // char *a = "hello";
-  // char *b = "world";
-  // int *c = malloc(sizeof(int));
-  // *c = 42;
-
-  // List *list = malloc(3 * sizeof(List));
-  // list[0].head = a;
-  // list[0].tail = &list[1];
-  // list[1].head = b;
-  // list[1].tail = &list[2];
-  // list[2].head = c;
-  // list[2].tail = NULL;
-
-
-  // List *l = makeList("1", makeList("2", makeList("3", NULL)));
-  // printList(l);
-  // freeList(l);
-
-  // List *l2;
-
-
-  // List *l = makeList("a", makeList("b", makeList("c", NULL)));
-  // printList(l);
-
-  // map(l, (void*)&println);
-
-  // reverseList(&l);
-  // printList(l);
-  // map(l, (void*)&println);
-
-
-  // freeList(l);
-
-
+  if (argc != 2) {
+    printf("Usage: %s <filename>\n", argv[0]);
+    exit(1);
+  }
 
   List *program = NULL;
 
