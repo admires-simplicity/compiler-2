@@ -154,8 +154,6 @@ bool identChar(char c) {
   }
 }
 
-
-
 Expr *parseValue(char *source, size_t *ip) {
   size_t i = *ip;
 
@@ -265,13 +263,13 @@ void printValExpr(Expr *expr) {
   // }
   switch (((Val *)(expr->subexprs))->vtype) {
     case IntVal:
-      printf("%d\n", *(int *)(((Val *)(expr->subexprs))->val));
+      printf("%d", *(int *)(((Val *)(expr->subexprs))->val));
       break;
     case BoolVal:
-      printf("%s\n", *(int *)(((Val *)(expr->subexprs))->val) ? "#t" : "#f");
+      printf("%s", *(int *)(((Val *)(expr->subexprs))->val) ? "#t" : "#f");
       break;
     case StringVal:
-      printf("\"%s\"\n", (char *)(((Val *)(expr->subexprs))->val));
+      printf("\"%s\"", (char *)(((Val *)(expr->subexprs))->val));
       break;
     default:
       printf("Unknown or unimplemented val type %d\n", ((Val *)(expr->subexprs))->vtype);
@@ -280,8 +278,14 @@ void printValExpr(Expr *expr) {
 }
 
 void printIdentExpr(Expr *expr) {
-  printf("%s\n", (char *)expr->subexprs);
+  printf("%s", (char *)expr->subexprs);
 }
+
+
+Expr *getExprSubexpr(Expr *expr, size_t i) {
+  return ((Expr **)(expr->subexprs))[i];
+}
+
 
 void printExpr(Expr *expr) {
   if (expr == NULL) {
@@ -294,6 +298,19 @@ void printExpr(Expr *expr) {
       break;
     case IdentExpr:
       printIdentExpr(expr);
+      break;
+    case ApplyExpr:
+      Expr *func = getExprSubexpr(expr, 0);
+      Expr *args = getExprSubexpr(expr, 1);
+      List *argList = args->subexprs;
+      printf("(");
+      printExpr(func);
+      while (argList != NULL) {
+        printf(" ");
+        printExpr(argList->head);
+        argList = argList->tail;
+      }
+      printf(")\n");
       break;
     default:
       printf("Unknown or unimplemented expr type\n");
@@ -331,6 +348,10 @@ void freeExpr(Expr *expr) {
 }
 
 void freeExprList(List *list) {
+  if (list == NULL) {
+    printf("Warning (compiler bug): tried to free NULL list. This shouldn't happen.\n");
+    return;
+  }
   if (list->tail != NULL) {
     freeExprList(list->tail);
   }

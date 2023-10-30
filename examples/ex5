@@ -1,0 +1,12 @@
+(fun (fib (int x) -> int)
+  (if (<= x 0)
+      0
+      (+ (fib (- x 1)) (fib (- x 2)))))
+
+(decl int n)
+
+(scanf "%d" n)
+
+(for i 1 n (printf "(fib %d): %d\n" i (fib i)))
+
+(return 0)
