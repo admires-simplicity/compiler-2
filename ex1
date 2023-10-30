@@ -1,6 +1,7 @@
+; test for parsing a few values
 456
 "howdy"
-spaghetti
+spaghetti; comment on line test and also touching identifier test
 "hey"
 123
 

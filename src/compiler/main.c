@@ -122,15 +122,36 @@ void initializeGloabalIdentifiers() {
   trieAdd(gloabalIdentifiers, "add", makeValExpr(ValExpr, NULL));
 }
 
-size_t skipWhitespace(char *source, size_t i) {
-  while (source[i] == ' ' || source[i] == '\n' || source[i] == '\t') {
+size_t skipComment(char *source, size_t i) {
+  while (source[i] != '\n') {
     ++i;
   }
   return i;
 }
 
+size_t skipWhitespace(char *source, size_t i) { // maybe I should change this to size_t *i
+  while (source[i] == ' ' || source[i] == '\n' || source[i] == '\t') {
+    ++i;
+  }
+  if (source[i] == ';') {
+    return skipWhitespace(source, skipComment(source, i));
+  }
+  return i;
+}
+
 bool identChar(char c) {
-  return c != ' ' && c != '\n' && c != '\t' && c != '(' && c != ')' && c != '\0';
+  switch (c) {
+    case ' ':
+    case '\n':
+    case '\t':
+    case '(':
+    case ')':
+    case ';':
+    case '\0':
+      return false;
+    default:
+      return true;
+  }
 }
 
 
@@ -341,6 +362,73 @@ void println(char *str) {
   printf("%s\n", str);
 }
 
+Expr *parseExpr(char *source, size_t *ip);
+
+Expr *parseApplyExpr(char *source, size_t *ip) {
+  size_t i = *ip;
+
+  i = skipWhitespace(source, i);
+
+  if (source == NULL) {
+    printf("Error: source is NULL\n");
+    exit(1);
+  }
+
+  if (source[i] == '\0') {
+    *ip = i;
+    return NULL;
+  }
+
+  if (source[i] != '(') {
+    printf("Expected '(', got '%c'\n", source[i]);
+    exit(1);
+  }
+
+  i = skipWhitespace(source, i + 1);
+
+  if (source[i] == ')') {
+    *ip = i + 1;
+    return makeListExpr(NULL); // do I want this?
+  }
+
+  Expr *func = parseExpr(source, &i); // this could just be inside the loop. Should it?
+  Expr *arg = NULL;
+  List *args = NULL;
+  while (source[i] != ')') {
+    arg = parseExpr(source, &i);
+    args = makeList(arg, args);
+    i = skipWhitespace(source, i);
+  }
+  reverseList(&args);
+  *ip = i + 1;
+  return makeApplyExpr(func, makeListExpr(args));
+}
+
+Expr *parseExpr(char *source, size_t *ip) {
+  size_t i = *ip;
+
+  if (source == NULL) {
+    printf("Error: source is NULL\n");
+    exit(1);
+  }
+
+  i = skipWhitespace(source, i); // not sure if I want this to be handled here or before calling this function
+  
+  switch (source[i]) {
+    case '\0':
+      *ip = i;
+      return NULL;
+    case '(':
+      Expr *applyExpr = parseApplyExpr(source, &i);
+      *ip = i; // maybe I should just dereference ip directly?
+      return applyExpr;
+    default:
+      Expr *valExpr = parseValue(source, &i);
+      *ip = i;
+      return valExpr;
+  }
+}
+
 int main(char argc, char **argv) {
   if (argc != 2) {
     printf("Usage: %s <filename>\n", argv[0]);
@@ -350,9 +438,13 @@ int main(char argc, char **argv) {
   List *program = NULL;
 
   char *source = readSource(argv[1]);
+
   size_t si = 0;
   while (source[si] != '\0') {
-    Expr *expr = parseValue(source, &si); 
+    //Expr *expr = parseValue(source, &si); 
+    si = skipWhitespace(source, si);
+    //Expr *expr = parseList(source, &si);
+    Expr *expr = parseExpr(source, &si);
     if (expr != NULL) program = makeList(expr, program);
   }
 
