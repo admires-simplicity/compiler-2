@@ -300,6 +300,8 @@ void printExpr(Expr *expr) {
       printIdentExpr(expr);
       break;
     case ApplyExpr:
+      static int level = 0;
+      level++;
       Expr *func = getExprSubexpr(expr, 0);
       Expr *args = getExprSubexpr(expr, 1);
       List *argList = args->subexprs;
@@ -310,7 +312,9 @@ void printExpr(Expr *expr) {
         printExpr(argList->head);
         argList = argList->tail;
       }
-      printf(")\n");
+      --level;
+      printf(")");
+      if (level == 0) printf("\n");
       break;
     default:
       printf("Unknown or unimplemented expr type\n");
