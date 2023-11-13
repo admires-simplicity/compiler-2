@@ -44,6 +44,10 @@ struct Scope {
   Scope *parent;
 };
 
+Expr *getExprSubexpr(Expr *expr, size_t i) {
+  return ((Expr **)(expr->subexprs))[i];
+}
+
 List *makeList(void *head, List *tail) {
   List *list = malloc(sizeof(List));
   list->size = tail == NULL ? 1 : tail->size + 1;
@@ -315,8 +319,9 @@ void printIdentExpr(Expr *expr) {
 }
 
 
-Expr *getExprSubexpr(Expr *expr, size_t i) {
-  return ((Expr **)(expr->subexprs))[i];
+
+void *getValExprValue(Expr *expr) {
+  return ((Val *)(expr->subexprs))->val;
 }
 
 
@@ -380,8 +385,8 @@ void freeExpr(void *ptr) {
       free(expr->subexprs);
       break;
     case ApplyExpr:
-      freeExpr(((Expr **)expr->subexprs)[0]);
-      freeExpr(((Expr **)expr->subexprs)[1]);
+      freeExpr(getExprSubexpr(expr, 0));
+      freeExpr(getExprSubexpr(expr, 1));
       free(expr->subexprs);
       break;
     case ListExpr:
@@ -529,6 +534,10 @@ void freeScope(Scope *scope) {
   free(scope);
 }
 
+char *getIdentExprIdent(Expr *expr) {
+  return (char *)expr->subexprs;
+}
+
 void emitExpr(Expr *expr, Scope *scope) {
   //printf("emit expr %d\n", expr->etype);
   switch (expr->etype) {
@@ -536,11 +545,11 @@ void emitExpr(Expr *expr, Scope *scope) {
       printValExpr(expr);
       break;
     case IdentExpr:
-      printf("%s", (char *)expr->subexprs);
+      printf("%s", getIdentExprIdent(expr));
       break;
     case ApplyExpr:
-      printf("%s(", ((Expr **)expr->subexprs)[0]->subexprs); // MAYBE getFuncName(expr) or something
-      //emitExpr(((Expr **)expr->subexprs)[1], scope);      
+      emitExpr(getExprSubexpr(expr, 0), scope); // assuming func is not a lambda (will have to change later)
+      printf("(");
       emitExpr(getExprSubexpr(expr, 1), scope);
       printf(");\n");
       break;
