@@ -60,6 +60,14 @@ void freeList(List *list) {
   free(list);
 }
 
+void freeListWith(List *list, void (*freeValue)(void *)) {
+  if (list->tail != NULL) {
+    freeListWith(list->tail, freeValue);
+  }
+  freeValue(list->head);
+  free(list);
+}
+
 /* Prints a list. Only works for char* list.
  */
 void printList(List *list) {
@@ -313,6 +321,8 @@ Expr *getExprSubexpr(Expr *expr, size_t i) {
 
 
 void printExpr(Expr *expr) {
+  //static int c = 0;
+  //printf("[expr %d etype %d]: ", ++c, expr->etype);
   if (expr == NULL) {
     printf("NULL\n");
     return;
@@ -332,6 +342,7 @@ void printExpr(Expr *expr) {
       List *argList = args->subexprs;
       printf("(");
       printExpr(func);
+      //printf(" [expr %d etype %d]: ", ++c, args->etype);
       while (argList != NULL) {
         printf(" ");
         printExpr(argList->head);
@@ -345,7 +356,6 @@ void printExpr(Expr *expr) {
       printf("Unknown or unimplemented expr type\n");
       break;
   }
-
 }
 
 void freeValue(Val *val) {
@@ -358,8 +368,12 @@ void freeValue(Val *val) {
  */
 void freeExpr(void *ptr) {
   Expr *expr = (Expr *)ptr;
+  //static int c = 0;
+  //printf("freeing expr %d etype %d\n", ++c, expr->etype);
   switch (expr->etype) {
     case ValExpr:
+      //static int d = 0;
+      //printf("\tfreeing val expr %d vtype %d\n", ++d, ((Val *)expr->subexprs)->vtype);
       freeValue(expr->subexprs);
       break;
     case IdentExpr:
@@ -371,7 +385,8 @@ void freeExpr(void *ptr) {
       free(expr->subexprs);
       break;
     case ListExpr:
-      freeList(expr->subexprs);
+      //freeList(expr->subexprs);
+      freeListWith(expr->subexprs, &freeExpr);
       break;
     default:
       printf("Unknown or unimplemented expr type\n");
@@ -403,6 +418,15 @@ void reverseList(List **list) {
     curr = next;
   }
   *list = prev;
+}
+
+int listSize(List *list) {
+  int size = 0;
+  while (list != NULL) {
+    size++;
+    list = list->tail;
+  }
+  return size;
 }
 
 void map(List *list, void (*f)(Expr *)) {
@@ -506,6 +530,7 @@ void freeScope(Scope *scope) {
 }
 
 void emitExpr(Expr *expr, Scope *scope) {
+  //printf("emit expr %d\n", expr->etype);
   switch (expr->etype) {
     case ValExpr:
       printValExpr(expr);
@@ -515,7 +540,8 @@ void emitExpr(Expr *expr, Scope *scope) {
       break;
     case ApplyExpr:
       printf("%s(", ((Expr **)expr->subexprs)[0]->subexprs); // MAYBE getFuncName(expr) or something
-      emitExpr(((Expr **)expr->subexprs)[1], scope);      
+      //emitExpr(((Expr **)expr->subexprs)[1], scope);      
+      emitExpr(getExprSubexpr(expr, 1), scope);
       printf(");\n");
       break;
     case ListExpr:
@@ -571,7 +597,9 @@ int main(char argc, char **argv) {
     if (expr != NULL) program = makeList(expr, program);
   }
 
+  //printf("program size: %d\n", listSize(program));
   compile(&program);
+  //printf("program size: %d\n", listSize(program));
 
   //printList(program);
 
