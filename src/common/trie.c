@@ -17,6 +17,7 @@ Trie *makeTrie() {
   return trie;
 }
 
+// basically useless ?
 void freeTrie(Trie *trie) {
   if (trie->children != NULL) {
     for (size_t i = 0; i < trie->children_count; ++i) {
@@ -27,6 +28,18 @@ void freeTrie(Trie *trie) {
   free(trie);
 }
 
+void freeTrieWith(Trie *trie, void (*freeValue)(void *)) {
+  if (trie->children != NULL) {
+    for (size_t i = 0; i < trie->children_count; ++i) {
+      freeTrieWith(trie->children[i], freeValue);
+    }
+    free(trie->children);
+  }
+  if (trie->value != NULL) {
+    freeValue(trie->value);
+  }
+  free(trie);
+}
 
 void *trieGet(Trie *trie, char *key) {
   if (trie == NULL || key == NULL) { // invalid

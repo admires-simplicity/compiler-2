@@ -14,6 +14,7 @@ struct Trie {
 
 Trie *makeTrie();
 void freeTrie(Trie *trie);
+void freeTrieWith(Trie *trie, void (*freeValue)(void *));
 void *trieGet(Trie *trie, char *key);
 Trie *trieAdd(Trie *trie, char *key, void *value);
 

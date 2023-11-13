@@ -334,7 +334,11 @@ void freeValue(Val *val) {
   free(val);
 }
 
-void freeExpr(Expr *expr) {
+/*
+ * must be passed Expr ptr
+ */
+void freeExpr(void *ptr) {
+  Expr *expr = (Expr *)ptr;
   switch (expr->etype) {
     case ValExpr:
       freeValue(expr->subexprs);
@@ -477,7 +481,8 @@ Scope *makeLocalScope(Scope *parent) {
 }
 
 void freeScope(Scope *scope) {
-  freeTrie(scope->identifiers);
+  //freeTrie(scope->identifiers);
+  freeTrieWith(scope->identifiers, &freeExpr);
   free(scope);
 }
 
@@ -508,10 +513,10 @@ void emitExpr(Expr *expr, Scope *scope) {
   }
 }
 
-int compile(List *program) {
+int compile(List **program) {
   Scope *globalScope = makeGlobalScope();
-  reverseList(&program);
-  List *curr = program;
+  reverseList(program);
+  List *curr = *program;
 
   printf("int main() {\n");
   
@@ -523,6 +528,7 @@ int compile(List *program) {
   
   printf("}\n");
 
+  freeScope(globalScope);
   return 0;
 }
 
@@ -546,10 +552,9 @@ int main(char argc, char **argv) {
     if (expr != NULL) program = makeList(expr, program);
   }
 
-  // reverseList(&program);
-  // map(program, &printExpr);
+  compile(&program);
 
-  compile(program);
+  printList(program);
 
   freeExprList(program);
 
