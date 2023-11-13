@@ -38,6 +38,12 @@ struct List {
   List *tail;
 };
 
+typedef struct Scope Scope;
+struct Scope {
+  Trie *identifiers;
+  Scope *parent;
+};
+
 List *makeList(void *head, List *tail) {
   List *list = malloc(sizeof(List));
   list->size = tail == NULL ? 1 : tail->size + 1;
@@ -454,6 +460,73 @@ Expr *parseExpr(char *source, size_t *ip) {
   }
 }
 
+Scope *makeScope(Scope *parent, Trie *identifiers) { // SHOULD I PASS TRIE? LIST? NOTHING?
+  Scope *scope = malloc(sizeof(Scope));
+  scope->identifiers = identifiers;
+  scope->parent = parent;
+  return scope;
+}
+
+Scope *makeGlobalScope() {
+  initializeGloabalIdentifiers(); // SHOULD THIS BE HERE?
+  return makeScope(NULL, gloabalIdentifiers);
+}
+
+Scope *makeLocalScope(Scope *parent) {
+  return makeScope(parent, makeTrie());
+}
+
+void freeScope(Scope *scope) {
+  freeTrie(scope->identifiers);
+  free(scope);
+}
+
+void emitExpr(Expr *expr, Scope *scope) {
+  switch (expr->etype) {
+    case ValExpr:
+      printValExpr(expr);
+      break;
+    case IdentExpr:
+      printf("%s", (char *)expr->subexprs);
+      break;
+    case ApplyExpr:
+      printf("%s(", ((Expr **)expr->subexprs)[0]->subexprs); // MAYBE getFuncName(expr) or something
+      emitExpr(((Expr **)expr->subexprs)[1], scope);      
+      printf(");\n");
+      break;
+    case ListExpr:
+      List *list = expr->subexprs;
+      while (list != NULL) {
+        emitExpr(list->head, scope);
+        list = list->tail;
+        if (list != NULL) printf(", ");
+      }
+      break;
+    default:
+      printf("Unknown or unimplemented expr type\n");
+      break;
+  }
+}
+
+int compile(List *program) {
+  Scope *globalScope = makeGlobalScope();
+  reverseList(&program);
+  List *curr = program;
+
+  printf("int main() {\n");
+  
+  while (curr != NULL) {
+    Expr *expr = curr->head;
+    emitExpr(expr, globalScope);
+    curr = curr->tail;
+  }
+  
+  printf("}\n");
+
+  return 0;
+}
+
+
 int main(char argc, char **argv) {
   if (argc != 2) {
     printf("Usage: %s <filename>\n", argv[0]);
@@ -473,8 +546,10 @@ int main(char argc, char **argv) {
     if (expr != NULL) program = makeList(expr, program);
   }
 
-  reverseList(&program);
-  map(program, &printExpr);
+  // reverseList(&program);
+  // map(program, &printExpr);
+
+  compile(program);
 
   freeExprList(program);
 
