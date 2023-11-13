@@ -160,6 +160,64 @@ bool identChar(char c) {
   }
 }
 
+Expr *parseStringValue(char *source, size_t *ip) {
+  size_t i = *ip;
+  size_t j = i + 1;
+  while (source[j] != '"') {
+    j++;
+  }
+  char *val = malloc((j - i + 1) * sizeof(char));
+  strncpy(val, source + i + 1, j - i - 1);
+  val[j - i - 1] = '\0';
+  *ip = j + 1;
+  return makeValExpr(StringVal, val);
+}
+
+Expr *parseBool(char *source, size_t *ip) {
+  size_t i = *ip;
+  if (source[i + 1] == 't') {
+    *ip = i + 2;
+    return makeValExpr(BoolVal, (void *)1);
+  }
+  if (source[i + 1] == 'f') {
+    *ip = i + 2;
+    return makeValExpr(BoolVal, (void *)0);
+  } 
+  else {
+    printf("Malformed bool #%c\n", source[i+1]);
+    exit(1);
+  }
+}
+
+Expr *parseIntExpr(char *source, size_t *ip) {
+  size_t i = *ip;
+  size_t j = i + 1;
+  while (source[j] >= '0' && source[j] <= '9') {
+    j++;
+  }
+  char *val = malloc((j - i + 1) * sizeof(char));
+  strncpy(val, source + i, j - i);
+  val[j - i] = '\0';
+  int *int_val = malloc(sizeof(int));
+  *int_val = atoi(val);
+  free(val);
+  *ip = j;
+  return makeValExpr(IntVal, int_val);
+}
+
+Expr *parseIdentifier(char *source, size_t *ip) {
+  size_t i = *ip;
+  size_t j = i + 1;
+  while (identChar(source[j])) {
+    j++;
+  }
+  char *ident = malloc((j - i + 1) * sizeof(char));
+  strncpy(ident, source + i, j - i);
+  ident[j - i] = '\0';
+  *ip = j;
+  return makeIdentExpr(ident);
+}
+
 Expr *parseValue(char *source, size_t *ip) {
   size_t i = *ip;
 
@@ -175,59 +233,20 @@ Expr *parseValue(char *source, size_t *ip) {
     return NULL;
   }
 
-
-  //parse string
   if (source[i] == '"') {
-    size_t j = i + 1;
-    while (source[j] != '"') {
-      j++;
-    }
-    char *val = malloc((j - i + 1) * sizeof(char));
-    strncpy(val, source + i + 1, j - i - 1);
-    val[j - i - 1] = '\0';
-    *ip = j + 1;
-    return makeValExpr(StringVal, val);
+    return parseStringValue(source, ip);
   }
 
-  //parse bool
   if (source[i] == '#') {
-    if (source[i + 1] == 't') {
-      *ip = i + 2;
-      return makeValExpr(BoolVal, (void *)1);
-    }
-    if (source[i + 1] == 'f') {
-      *ip = i + 2;
-      return makeValExpr(BoolVal, (void *)0);
-    } 
+    return parseBool(source, ip);
   }
 
-  //parse int
   if (source[i] >= '0' && source[i] <= '9') {
-    size_t j = i + 1;
-    while (source[j] >= '0' && source[j] <= '9') {
-      j++;
-    }
-    char *val = malloc((j - i + 1) * sizeof(char));
-    strncpy(val, source + i, j - i);
-    val[j - i] = '\0';
-    int *int_val = malloc(sizeof(int));
-    *int_val = atoi(val);
-    free(val);
-    *ip = j;
-    return makeValExpr(IntVal, int_val);
+    return parseIntExpr(source, ip);
   }
 
-  //parse identifier
   if (identChar(source[i])) {
-    size_t j = i + 1;
-    while (identChar(source[j])) {
-      j++;
-    }
-    char *ident = malloc((j - i + 1) * sizeof(char));
-    strncpy(ident, source + i, j - i);
-    ident[j - i] = '\0';
-    *ip = j;
-    return makeIdentExpr(ident);
+    return parseIdentifier(source, ip);
   }
 
   printf("Unknown or unimplemented value type %d\n", source[i]);
@@ -554,7 +573,7 @@ int main(char argc, char **argv) {
 
   compile(&program);
 
-  printList(program);
+  //printList(program);
 
   freeExprList(program);
 
