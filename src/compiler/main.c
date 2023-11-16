@@ -539,6 +539,7 @@ char *getIdentExprIdent(Expr *expr) {
 }
 
 void emitExpr(Expr *expr, Scope *scope) {
+  static int level = 0;
   //printf("emit expr %d\n", expr->etype);
   switch (expr->etype) {
     case ValExpr:
@@ -548,10 +549,13 @@ void emitExpr(Expr *expr, Scope *scope) {
       printf("%s", getIdentExprIdent(expr));
       break;
     case ApplyExpr:
+      ++level;
       emitExpr(getExprSubexpr(expr, 0), scope); // assuming func is not a lambda (will have to change later)
       printf("(");
       emitExpr(getExprSubexpr(expr, 1), scope);
-      printf(");\n");
+      printf(")");
+      --level;
+      if (level == 0) printf(";\n");
       break;
     case ListExpr:
       List *list = expr->subexprs;
