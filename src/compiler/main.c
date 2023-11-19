@@ -705,9 +705,34 @@ int evalExpr(Expr *expr, Scope *scope) {
 
 // }
 
+List *evalTypes(Expr *typeListExpr) {
+  return NULL;
+}
+
 void evalFun(Expr *funExpr, Scope *scope) {
   printf("evaluating %s\n", getIdentExprIdent(getExprSubexpr(funExpr, 0)));
-  emitExpr(funExpr, scope);
+  Expr *typeDefinition = getExprSubexpr(funExpr, 0);
+  Expr *body = getExprSubexpr(funExpr, 1);
+  
+  char *ident = getIdentExprIdent(getExprSubexpr(typeDefinition, 0));
+  //List *types = evalTypes(getExprSubexpr(typeDefinition, 1)); // TODO : add scope
+  List *types = getExprSubexpr(typeDefinition, 1)->subexprs;
+
+  printf("ident: %s\n", ident);
+  printf("types: ");
+  List *curr = types;
+  while (curr != NULL) {
+    printf("\"");
+    printExpr(curr->head);
+    printf("\",");
+    curr = curr->tail;
+  }
+  printf("\n");
+
+
+  // TODO : finish this
+
+
 }
 
 void evalInstructionList(List *instructionList, Scope *scope) {
@@ -795,4 +820,4 @@ int main(char argc, char **argv) {
   free(source);
 }
 
-// TODO finish implementing blocks / decl / fun
+// TODO finish implementing blocks / decl / fun --> finish evalFun
