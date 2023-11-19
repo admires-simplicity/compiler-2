@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #include "../common/trie.h"
 
@@ -23,6 +24,9 @@ typedef enum {
   ApplyExpr,
   TypeExpr,
   ListExpr,
+  DeclExpr,
+  FunExpr,
+  BlockExpr,
 } ExprType;
 
 typedef struct {
@@ -33,7 +37,7 @@ typedef struct {
 
 typedef struct List List;
 struct List {
-  size_t size;
+  //size_t size;
   void *head;
   List *tail;
 };
@@ -44,13 +48,19 @@ struct Scope {
   Scope *parent;
 };
 
+void freeScope(Scope *scope);
+char *getIdentExprIdent(Expr *expr);
+
+
+
+// maybe this should be void **getSubexpr ? (can you do (void **) ?)
 Expr *getExprSubexpr(Expr *expr, size_t i) {
   return ((Expr **)(expr->subexprs))[i];
 }
 
 List *makeList(void *head, List *tail) {
   List *list = malloc(sizeof(List));
-  list->size = tail == NULL ? 1 : tail->size + 1;
+  //list->size = tail == NULL ? 1 : tail->size + 1;
   list->head = head;
   list->tail = tail;
   return list;
@@ -109,11 +119,11 @@ Expr *makeIdentExpr(char *ident) {
   return expr;
 }
 
-Expr *makeApplyExpr(Expr *func, Expr *args) {
+Expr *makeApplyExpr(Expr *func, Expr *args) { // TODO: change to using makeBinExpr
   assert(args->etype == ListExpr);
   Expr *expr = malloc(sizeof(Expr));
   expr->etype = ApplyExpr;
-  expr->size = sizeof(Expr *) * 2;
+  expr->size = 2;
   expr->subexprs = malloc(expr->size);
   ((Expr **)expr->subexprs)[0] = func;
   ((Expr **)expr->subexprs)[1] = args;
@@ -123,12 +133,45 @@ Expr *makeApplyExpr(Expr *func, Expr *args) {
 Expr *makeListExpr(List *list) {
   Expr *expr = malloc(sizeof(Expr));
   expr->etype = ListExpr;
-  expr->size = list->size;
+  //expr->size = list->size;
   // List **list_ptr = malloc(sizeof(List *));
   // *list_ptr = list;
   // expr->subexprs = list_ptr;
   expr->subexprs = list;
   return expr;
+}
+
+Expr *makeBinExpr(ExprType etype, Expr *arg1, Expr *arg2) {
+  Expr *expr = malloc(sizeof(Expr));
+  expr->etype = etype;
+  expr->size = 2;
+  expr->subexprs = malloc(2 * sizeof(Expr *));
+  ((Expr **)expr->subexprs)[0] = arg1;
+  ((Expr **)expr->subexprs)[1] = arg2;
+  return expr;
+}
+
+Expr *makeBlockExpr(Scope *scope, Expr *listExpr) { // TODO : change to using makeBinExpr
+  assert(listExpr->etype == ListExpr);
+  Expr *expr = malloc(sizeof(Expr));
+  expr->etype = BlockExpr;
+  expr->size = 2;
+  expr->subexprs = malloc(sizeof(Scope *) + sizeof(Expr *));
+  ((Scope **)expr->subexprs)[0] = scope; // hack?
+  ((Expr **)expr->subexprs)[1] = listExpr;
+  return expr;
+}
+
+Expr *makeDeclExpr(Expr *typeExpr, Expr *identExpr) {
+  //assert(typeExpr->etype == TypeExpr); // TODO
+  assert(identExpr->etype == IdentExpr);
+  return makeBinExpr(DeclExpr, typeExpr, identExpr);
+}
+
+Expr *makeFunExpr(Expr *type, Expr *body) {
+  //assert(type->etype == TypeExpr); // TODO
+  assert(body->etype == BlockExpr || body->etype == ApplyExpr);
+  return makeBinExpr(FunExpr, type, body);
 }
 
 Trie *gloabalIdentifiers;
@@ -358,7 +401,7 @@ void printExpr(Expr *expr) {
       if (level == 0) printf("\n");
       break;
     default:
-      printf("Unknown or unimplemented expr type\n");
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
   }
 }
@@ -384,17 +427,24 @@ void freeExpr(void *ptr) {
     case IdentExpr:
       free(expr->subexprs);
       break;
-    case ApplyExpr:
-      freeExpr(getExprSubexpr(expr, 0));
-      freeExpr(getExprSubexpr(expr, 1));
-      free(expr->subexprs);
-      break;
     case ListExpr:
       //freeList(expr->subexprs);
       freeListWith(expr->subexprs, &freeExpr);
       break;
+    case BlockExpr:
+      freeScope((Scope *)getExprSubexpr(expr, 0)); // hacky -- maybe wrap getExprSubexpr in getScopeExprScope (?) (would also have to change Scope to ScopeExpr)
+      freeExpr(getExprSubexpr(expr, 1));
+      free(expr->subexprs);
+      break;
+    case ApplyExpr: // fallthrough
+    case DeclExpr: 
+    case FunExpr:
+      freeExpr(getExprSubexpr(expr, 0));
+      freeExpr(getExprSubexpr(expr, 1));
+      free(expr->subexprs);
+      break;
     default:
-      printf("Unknown or unimplemented expr type\n");
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
   }
   free(expr);
@@ -413,9 +463,12 @@ void freeExprList(List *list) {
 }
 
 void reverseList(List **list) {
+  if (*list == NULL) return;
+
   List *prev = NULL;
   List *curr = *list;
   List *next = NULL;
+  //size_t size = (*list)->size;
   while (curr != NULL) {
     next = curr->tail;
     curr->tail = prev;
@@ -423,6 +476,11 @@ void reverseList(List **list) {
     curr = next;
   }
   *list = prev;
+
+  // while (prev != NULL) {
+  //   prev->size = size--; //set and dec.
+  //   prev = prev->tail;
+  // }
 }
 
 int listSize(List *list) {
@@ -484,6 +542,34 @@ Expr *parseApplyExpr(char *source, size_t *ip) {
   }
   reverseList(&args);
   *ip = i + 1;
+
+  if (func->etype == IdentExpr) {
+    char *ident = getIdentExprIdent(func);
+    
+    if (strcmp(ident, "decl") == 0) {
+      //if (args->size != 2) {
+      if (listSize(args) != 2) {
+        //printf("Error: decl needs 2 arguments. Given %d\n", args->size); // line number and position would be nice
+        printf("Error: decl needs 2 arguments. Given %d\n", listSize(args)); // line number and position would be nice
+        exit(1); // TODO: better error handling.
+      }
+      return makeDeclExpr(args->head, args->tail->head);
+    }
+
+    if (strcmp(ident, "fun") == 0) {
+      //if (args->size != 2) {
+      if (listSize(args) != 2) {
+        //printf("Error: fun needs 2 arguments. Given %d\n", args->size);
+        printf("Error: fun needs 2 arguments. Given %d\n", listSize(args));
+        exit(1); // TODO: better error handling.
+      }
+      return makeFunExpr(args->head, args->tail->head);
+    }
+
+    //TODO: add DefExpr
+    //TODO: do I need to handle lambdas here??
+  }
+
   return makeApplyExpr(func, makeListExpr(args));
 }
 
@@ -566,25 +652,113 @@ void emitExpr(Expr *expr, Scope *scope) {
       }
       break;
     default:
-      printf("Unknown or unimplemented expr type\n");
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
   }
+}
+
+List *gatherFrom(List *list, bool (*gather)(Expr *)) {
+  List *gathered = NULL;
+  List *current = list;
+
+  while (list != NULL) {
+    if (gather(list->head)) {
+      gathered = makeList(list->head, gathered);
+      *list = *(list->tail);
+    }
+    else list = list->tail;
+  }
+  reverseList(&gathered);
+  return gathered;
+}
+
+
+// bool isDecl(Expr *expr) {
+//   return expr->etype == DeclExpr || expr->etype == FunExpr; // later add DefExpr
+// }
+
+bool isFun(Expr *expr) {
+  return expr->etype == FunExpr;
+}
+
+int evalBlockExpr(Expr *expr) {
+  assert(expr->etype == BlockExpr);
+  Scope *scope = (Scope *)getExprSubexpr(expr, 0);
+  Expr *listExpr = getExprSubexpr(expr, 1);
+  List *subexprList = listExpr->subexprs;
+  //List *decls = gatherFrom(subexprList, &isDecl);
+  List *funs = gatherFrom(subexprList, &isFun);
+
+  // printf("decls size: %d\n", decls->size);
+  // printf("subexprList size: %d\n", subexprList->size);
+  //printf("(%s): decls size: %d\n", __func__, listSize(decls));
+  //printf("(%s): subexprList size: %d\n", __func__, listSize(subexprList));
+
+  return 0;
+}
+
+int evalExpr(Expr *expr, Scope *scope) {
+
+}
+
+// int evalDeclList(List *declList, Scope *scope) {
+
+// }
+
+void evalFun(Expr *funExpr, Scope *scope) {
+  printf("evaluating %s\n", getIdentExprIdent(getExprSubexpr(funExpr, 0)));
+  emitExpr(funExpr, scope);
+}
+
+void evalInstructionList(List *instructionList, Scope *scope) {
+  printf("%s\n", __func__);
+}
+
+
+int evalProgram(Expr *program) {
+  assert(program->etype == BlockExpr);
+  Scope *scope = (Scope *)getExprSubexpr(program, 0);
+  Expr *instructions = getExprSubexpr(program, 1);
+  assert(instructions->etype == ListExpr);
+  List *instructionList = instructions->subexprs;
+  List *funs = gatherFrom(instructionList, &isFun);
+
+  for (List *curr = funs; curr != NULL; curr = curr->tail) {
+    evalFun(curr->head, scope);
+  }
+
+  printf("int main() {\n");
+  evalInstructionList(instructionList, scope);
+  printf("}\n");
+
+  // printf("(%s): decls size: %d\n", __func__, decls->size);
+  // printf("(%s): instructionList size: %d\n", __func__, instructionList->size);
+  // printf("(%s): decls size: %d\n", __func__, listSize(decls));
+  // printf("(%s): instructionList size: %d\n", __func__, listSize(instructionList));
+
+  return 0;
 }
 
 int compile(List **program) {
   Scope *globalScope = makeGlobalScope();
   reverseList(program);
-  List *curr = *program;
 
-  printf("int main() {\n");
   
-  while (curr != NULL) {
-    Expr *expr = curr->head;
-    emitExpr(expr, globalScope);
-    curr = curr->tail;
-  }
+
+  Expr *programBlock = makeBlockExpr(globalScope, makeListExpr(*program));
+
+  //printf("int main() {\n");
   
-  printf("}\n");
+  // List *curr = *program;
+  // while (curr != NULL) {
+  //   Expr *expr = curr->head;
+  //   emitExpr(expr, globalScope);
+  //   curr = curr->tail;
+  // }
+  
+  //printf("}\n");
+  
+  evalProgram(programBlock);
 
   freeScope(globalScope);
   return 0;
@@ -620,3 +794,5 @@ int main(char argc, char **argv) {
 
   free(source);
 }
+
+// TODO finish implementing blocks / decl / fun
