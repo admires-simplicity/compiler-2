@@ -54,6 +54,7 @@ void freeScope(Scope *scope);
 char *getIdentExprIdent(Expr *expr);
 void evalFun(Expr *funExpr, Scope *scope);
 int evalExpr(Expr *expr, Scope *scope);
+int listSize(List *list);
 
 
 
@@ -206,6 +207,19 @@ Expr *makeReturnExpr(Expr *expr) {
   return makeUnaryExpr(ReturnExpr, expr);
 }
 
+bool reserved(char *ident) {
+  //change this to checking if ident is in trie
+  return strcmp(ident, "return") == 0;
+}
+
+Expr *makeNativeExpr(Expr *func, List *args) {
+  char *ident = getIdentExprIdent(func);
+  if (strcmp(ident, "return") == 0) {
+    assert(listSize(args) == 1);
+    return makeReturnExpr(args->head);
+  }
+}
+
 Trie *gloabalIdentifiers;
 void initializeGloabalIdentifiers() {
   // this will cause a leak if called more than once (without freeing)
@@ -302,6 +316,7 @@ Expr *parseIdentifier(char *source, size_t *ip) {
   strncpy(ident, source + i, j - i);
   ident[j - i] = '\0';
   *ip = j;
+
   return makeIdentExpr(ident);
 }
 
@@ -476,6 +491,11 @@ void freeExpr(void *ptr) {
       freeExpr(getExprSubexpr(expr, 1));
       free(expr->subexprs);
       break;
+    case TypeExpr:
+    case ReturnExpr:
+      freeExpr(getExprSubexpr(expr, 0));
+      free(expr->subexprs);
+      break;
     default:
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
@@ -603,6 +623,9 @@ Expr *parseApplyExpr(char *source, size_t *ip) {
     //TODO: do I need to handle lambdas here??
   }
 
+  if (func->etype == IdentExpr && reserved(getIdentExprIdent(func))) {
+    return makeNativeExpr(func, args);
+  }
   return makeApplyExpr(func, makeListExpr(args));
 }
 
@@ -692,6 +715,19 @@ void emitExpr(Expr *expr, Scope *scope) {
       printf(" ");
       emitExpr(getExprSubexpr(expr, 1), scope);
       break;
+    case ReturnExpr:
+      ++level;
+      printf("return ");
+      evalExpr(getExprSubexpr(expr, 0), scope);
+      --level;
+      printf(";\n");
+      break;
+    case DeclExpr:
+      emitExpr(getExprSubexpr(expr, 0), scope);
+      printf(" ");
+      emitExpr(getExprSubexpr(expr, 1), scope);
+      printf(";\n");
+      break;
     default:
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
@@ -721,7 +757,6 @@ List *gatherFrom(List *list, bool (*gather)(Expr *)) {
 bool isFun(Expr *expr) {
   return expr->etype == FunExpr;
 }
-
 int evalBlockExpr(Expr *expr) {
   assert(expr->etype == BlockExpr || expr->etype == ApplyExpr);
   Scope *scope = (Scope *)getExprSubexpr(expr, 0);
@@ -740,26 +775,15 @@ int evalBlockExpr(Expr *expr) {
     curr = curr->tail;
   }
 
-  switch (expr->etype) {
-    case BlockExpr:
-      List *curr;
-      for (curr = subexprList; curr->tail != NULL; curr = curr->tail) {
-        evalExpr(curr->head, scope);
-      }
-      if (((Expr *)curr->head)->etype == ReturnExpr) {
-        evalExpr(curr->head, scope);
-      } else {
-        Expr *returnExpr = makeReturnExpr(curr->head);
-        evalExpr(returnExpr, scope);
-      }
-      break;
-    case ApplyExpr:
-      Expr *returnExpr = makeReturnExpr(expr);
-      evalExpr(returnExpr, scope);
-      break;
-    default:
-      printf("(%s): Malformed expr type %d\n", __func__, expr->etype);
-      break;
+  List *curr;
+  for (curr = subexprList; curr->tail != NULL; curr = curr->tail) {
+    evalExpr(curr->head, scope);
+  }
+
+  if (((Expr *)curr->head)->etype == ReturnExpr) {
+    evalExpr(curr->head, scope);
+  } else {
+    evalExpr(makeReturnExpr(curr->head), scope);
   }
 
   return 0;
@@ -773,6 +797,8 @@ int evalExpr(Expr *expr, Scope *scope) {
     case ApplyExpr:
     case ListExpr:
     case TypedValExpr: // temporary?
+    case ReturnExpr:
+    case DeclExpr:
       emitExpr(expr, scope);
       break;
     default:
@@ -861,7 +887,19 @@ void evalFun(Expr *funExpr, Scope *scope) {
   Expr *argListExpr = makeListExpr(args);
   evalExpr(argListExpr, scope);
   printf(") {\n");
-  evalBlockExpr(body);
+  Expr *blockExpr;
+  switch (body->etype) {
+    case BlockExpr:
+      blockExpr = body;
+      break;
+    case ApplyExpr:
+      blockExpr = makeBlockExpr(localScope, makeListExpr(makeList(body, NULL)));
+      break;
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, body->etype);
+      exit(1);
+  }
+  evalBlockExpr(blockExpr);
   printf("}\n");
 
 }
@@ -882,11 +920,11 @@ int evalProgram(Expr *program) {
 
   for (List *curr = funs; curr != NULL; curr = curr->tail) {
     evalFun(curr->head, scope);
-    curr = curr->tail;
   }
 
   printf("int main() {\n");
-  evalInstructionList(instructionList, scope);
+  //evalInstructionList(instructionList, scope);
+  evalBlockExpr(makeBlockExpr(scope, instructions));
   printf("}\n");
 
   // printf("(%s): decls size: %d\n", __func__, decls->size);
@@ -900,8 +938,6 @@ int evalProgram(Expr *program) {
 int compile(List **program) {
   Scope *globalScope = makeGlobalScope();
   reverseList(program);
-
-  
 
   Expr *programBlock = makeBlockExpr(globalScope, makeListExpr(*program));
 
