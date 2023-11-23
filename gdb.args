@@ -1,0 +1,3 @@
+run examples/ex4
+tui enable
+backtrace

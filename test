@@ -1,0 +1,3 @@
+#!/bin/bash
+make debug
+gdb -x gdb.args ./bin/compiler_debug

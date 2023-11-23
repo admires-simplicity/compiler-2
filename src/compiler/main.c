@@ -27,6 +27,8 @@ typedef enum {
   DeclExpr,
   FunExpr,
   BlockExpr,
+  TypedValExpr,
+  ReturnExpr,
 } ExprType;
 
 typedef struct {
@@ -50,6 +52,9 @@ struct Scope {
 
 void freeScope(Scope *scope);
 char *getIdentExprIdent(Expr *expr);
+void evalFun(Expr *funExpr, Scope *scope);
+int evalExpr(Expr *expr, Scope *scope);
+
 
 
 
@@ -151,6 +156,15 @@ Expr *makeBinExpr(ExprType etype, Expr *arg1, Expr *arg2) {
   return expr;
 }
 
+Expr *makeUnaryExpr(ExprType etype, Expr *arg) {
+  Expr *expr = malloc(sizeof(Expr));
+  expr->etype = etype;
+  expr->size = 1;
+  expr->subexprs = malloc(sizeof(Expr *));
+  ((Expr **)expr->subexprs)[0] = arg;
+  return expr;
+}
+
 Expr *makeBlockExpr(Scope *scope, Expr *listExpr) { // TODO : change to using makeBinExpr
   assert(listExpr->etype == ListExpr);
   Expr *expr = malloc(sizeof(Expr));
@@ -172,6 +186,24 @@ Expr *makeFunExpr(Expr *type, Expr *body) {
   //assert(type->etype == TypeExpr); // TODO
   assert(body->etype == BlockExpr || body->etype == ApplyExpr);
   return makeBinExpr(FunExpr, type, body);
+}
+
+Expr *makeTypeExpr(Expr *type) {
+  assert(type->etype == IdentExpr);
+  return makeUnaryExpr(TypeExpr, type);
+}
+
+Expr *makeTypedValExpr(Expr *type, Expr *ident) {
+  assert(type->etype == IdentExpr); // TODO: make better. add actual type checking.
+  //printf("%d\n", ident->etype);
+  //assert(ident->etype == IdentExpr);
+  assert(ident->etype == ListExpr);
+  assert(((Expr *)(((List *)ident->subexprs)->head))->etype == IdentExpr);
+  return makeBinExpr(TypedValExpr, type, ((List *)ident->subexprs)->head);
+}
+
+Expr *makeReturnExpr(Expr *expr) {
+  return makeUnaryExpr(ReturnExpr, expr);
 }
 
 Trie *gloabalIdentifiers;
@@ -439,6 +471,7 @@ void freeExpr(void *ptr) {
     case ApplyExpr: // fallthrough
     case DeclExpr: 
     case FunExpr:
+    case TypedValExpr:
       freeExpr(getExprSubexpr(expr, 0));
       freeExpr(getExprSubexpr(expr, 1));
       free(expr->subexprs);
@@ -628,6 +661,9 @@ void emitExpr(Expr *expr, Scope *scope) {
   static int level = 0;
   //printf("emit expr %d\n", expr->etype);
   switch (expr->etype) {
+    case TypeExpr:
+      printf("%s", getIdentExprIdent(getExprSubexpr(expr, 0)));
+      break;
     case ValExpr:
       printValExpr(expr);
       break;
@@ -650,6 +686,11 @@ void emitExpr(Expr *expr, Scope *scope) {
         list = list->tail;
         if (list != NULL) printf(", ");
       }
+      break;
+    case TypedValExpr:
+      emitExpr(getExprSubexpr(expr, 0), scope);
+      printf(" ");
+      emitExpr(getExprSubexpr(expr, 1), scope);
       break;
     default:
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
@@ -682,7 +723,7 @@ bool isFun(Expr *expr) {
 }
 
 int evalBlockExpr(Expr *expr) {
-  assert(expr->etype == BlockExpr);
+  assert(expr->etype == BlockExpr || expr->etype == ApplyExpr);
   Scope *scope = (Scope *)getExprSubexpr(expr, 0);
   Expr *listExpr = getExprSubexpr(expr, 1);
   List *subexprList = listExpr->subexprs;
@@ -694,11 +735,50 @@ int evalBlockExpr(Expr *expr) {
   //printf("(%s): decls size: %d\n", __func__, listSize(decls));
   //printf("(%s): subexprList size: %d\n", __func__, listSize(subexprList));
 
+  for (List *curr = funs; curr != NULL; curr = curr->tail) {
+    evalFun(curr->head, scope);
+    curr = curr->tail;
+  }
+
+  switch (expr->etype) {
+    case BlockExpr:
+      List *curr;
+      for (curr = subexprList; curr->tail != NULL; curr = curr->tail) {
+        evalExpr(curr->head, scope);
+      }
+      if (((Expr *)curr->head)->etype == ReturnExpr) {
+        evalExpr(curr->head, scope);
+      } else {
+        Expr *returnExpr = makeReturnExpr(curr->head);
+        evalExpr(returnExpr, scope);
+      }
+      break;
+    case ApplyExpr:
+      Expr *returnExpr = makeReturnExpr(expr);
+      evalExpr(returnExpr, scope);
+      break;
+    default:
+      printf("(%s): Malformed expr type %d\n", __func__, expr->etype);
+      break;
+  }
+
   return 0;
 }
 
 int evalExpr(Expr *expr, Scope *scope) {
-
+  switch (expr->etype) {
+    case TypeExpr: //fallthrough
+    case ValExpr:
+    case IdentExpr:
+    case ApplyExpr:
+    case ListExpr:
+    case TypedValExpr: // temporary?
+      emitExpr(expr, scope);
+      break;
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+      break;
+  }
 }
 
 // int evalDeclList(List *declList, Scope *scope) {
@@ -709,8 +789,23 @@ List *evalTypes(Expr *typeListExpr) {
   return NULL;
 }
 
+Expr *interpretType(Expr *typeExpr) {
+  switch (typeExpr->etype) {
+    case IdentExpr:
+      //return makeTypedValExpr(typeExpr, NULL); // Type, NULL (type without identifier)
+      return makeTypeExpr(typeExpr);
+    case ApplyExpr:
+      return makeTypedValExpr(getExprSubexpr(typeExpr, 0), getExprSubexpr(typeExpr, 1)); // Type, Name
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, typeExpr->etype);
+      exit(1);
+  }
+}
+
 void evalFun(Expr *funExpr, Scope *scope) {
-  printf("evaluating %s\n", getIdentExprIdent(getExprSubexpr(funExpr, 0)));
+  //should I also declare every function before defining it ???
+  assert(funExpr->etype == FunExpr);
+
   Expr *typeDefinition = getExprSubexpr(funExpr, 0);
   Expr *body = getExprSubexpr(funExpr, 1);
   
@@ -718,20 +813,56 @@ void evalFun(Expr *funExpr, Scope *scope) {
   //List *types = evalTypes(getExprSubexpr(typeDefinition, 1)); // TODO : add scope
   List *types = getExprSubexpr(typeDefinition, 1)->subexprs;
 
-  printf("ident: %s\n", ident);
-  printf("types: ");
+
+  // printf("ident: %s\n", ident);
+  // printf("types: ");
+  // List *curr = types;
+  // while (curr != NULL) {
+  //   printf("\"");
+  //   printExpr(curr->head);
+  //   printf("\",");
+  //   curr = curr->tail;
+  // }
+  // printf("\n");
+
+
+  List *args = NULL;
+  Expr *returnType = NULL;
+  Scope *localScope = makeLocalScope(scope);
   List *curr = types;
-  while (curr != NULL) {
-    printf("\"");
-    printExpr(curr->head);
-    printf("\",");
+
+  if (curr == NULL) {
+    printf("(%s): implicit return type not yet implemented\n", __func__);
+    exit(1);
+  }
+
+  while (curr->tail != NULL) {
+    if (strcmp(getIdentExprIdent(curr->head), "->") == 0) {
+      curr = curr->tail;
+      continue; // hack. TODO: fix
+    }
+    // we have to deduce types and declare typed values in the scope of the function for each argument
+    
+    args = makeList(interpretType(curr->head), args);
+    //args = makeList(makeTypedValExpr(getExprSubexpr(curr->head, 0), getExprSubexpr(curr->head, 1)), args);
     curr = curr->tail;
   }
-  printf("\n");
+  //returnType = curr->head;
+  returnType = interpretType(curr->head);
+  reverseList(&args);
 
-
-  // TODO : finish this
-
+  evalExpr(returnType, scope); // I don't think it really matters whether I pass scope or localScope here, except if I maybe want to allow type shadowing... which seems bad.
+  printf(" %s(", ident);
+  //map(args, &evalExpr); // maybe should be "evalTypedValExpr" or something
+  // for (List *curr = args; curr != NULL; curr = curr->tail) {
+  //   evalExpr(curr->head, scope);
+  //   if (curr->tail != NULL) printf(", ");
+  // }
+  Expr *argListExpr = makeListExpr(args);
+  evalExpr(argListExpr, scope);
+  printf(") {\n");
+  evalBlockExpr(body);
+  printf("}\n");
 
 }
 
@@ -747,9 +878,11 @@ int evalProgram(Expr *program) {
   assert(instructions->etype == ListExpr);
   List *instructionList = instructions->subexprs;
   List *funs = gatherFrom(instructionList, &isFun);
+  //List *decls = gatherFrom(instructionList, &isDecl);
 
   for (List *curr = funs; curr != NULL; curr = curr->tail) {
     evalFun(curr->head, scope);
+    curr = curr->tail;
   }
 
   printf("int main() {\n");
@@ -821,3 +954,5 @@ int main(char argc, char **argv) {
 }
 
 // TODO finish implementing blocks / decl / fun --> finish evalFun
+
+// instead of "evalProgram" and "evalFun" I should just have "evalFun" and create a main fun in main.
