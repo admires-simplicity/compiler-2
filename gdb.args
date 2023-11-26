@@ -1,3 +1,2 @@
-run examples/ex4
-tui enable
+run examples/ex7
 backtrace

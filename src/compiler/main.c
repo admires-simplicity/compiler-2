@@ -29,6 +29,7 @@ typedef enum {
   BlockExpr,
   TypedValExpr,
   ReturnExpr,
+  ifExpr,
 } ExprType;
 
 typedef struct {
@@ -147,6 +148,15 @@ Expr *makeListExpr(List *list) {
   return expr;
 }
 
+Expr *makeUnaryExpr(ExprType etype, Expr *arg) {
+  Expr *expr = malloc(sizeof(Expr));
+  expr->etype = etype;
+  expr->size = 1;
+  expr->subexprs = malloc(sizeof(Expr *));
+  ((Expr **)expr->subexprs)[0] = arg;
+  return expr;
+}
+
 Expr *makeBinExpr(ExprType etype, Expr *arg1, Expr *arg2) {
   Expr *expr = malloc(sizeof(Expr));
   expr->etype = etype;
@@ -156,15 +166,19 @@ Expr *makeBinExpr(ExprType etype, Expr *arg1, Expr *arg2) {
   ((Expr **)expr->subexprs)[1] = arg2;
   return expr;
 }
-
-Expr *makeUnaryExpr(ExprType etype, Expr *arg) {
+Expr *makeTernaryExpr(ExprType etype, Expr *arg1, Expr *arg2, Expr *arg3) {
   Expr *expr = malloc(sizeof(Expr));
   expr->etype = etype;
-  expr->size = 1;
-  expr->subexprs = malloc(sizeof(Expr *));
-  ((Expr **)expr->subexprs)[0] = arg;
+  expr->size = 3;
+  expr->subexprs = malloc(3 * sizeof(Expr *));
+  ((Expr **)expr->subexprs)[0] = arg1;
+  ((Expr **)expr->subexprs)[1] = arg2;
+  ((Expr **)expr->subexprs)[2] = arg3;
   return expr;
 }
+//I could abstract these to makeNExpr with int and List* arguments.
+//I think it would require too much refactoring right now.
+
 
 Expr *makeBlockExpr(Scope *scope, Expr *listExpr) { // TODO : change to using makeBinExpr
   assert(listExpr->etype == ListExpr);
@@ -185,7 +199,7 @@ Expr *makeDeclExpr(Expr *typeExpr, Expr *identExpr) {
 
 Expr *makeFunExpr(Expr *type, Expr *body) {
   //assert(type->etype == TypeExpr); // TODO
-  assert(body->etype == BlockExpr || body->etype == ApplyExpr);
+  //assert(body->etype == BlockExpr || body->etype == ApplyExpr);
   return makeBinExpr(FunExpr, type, body);
 }
 
@@ -220,6 +234,11 @@ Expr *makeNativeExpr(Expr *func, List *args) {
   }
 }
 
+Expr *makeIfExpr(Expr *cond, List *then_else) {
+  assert(listSize(then_else) == 2);
+  return makeTernaryExpr(ifExpr, cond, then_else->head, then_else->tail->head);
+}
+
 Trie *gloabalIdentifiers;
 void initializeGloabalIdentifiers() {
   // this will cause a leak if called more than once (without freeing)
@@ -241,7 +260,11 @@ size_t skipWhitespace(char *source, size_t i) { // maybe I should change this to
     ++i;
   }
   if (source[i] == ';') {
-    return skipWhitespace(source, skipComment(source, i));
+    //return skipWhitespace(source, skipComment(source, i));
+    while (source[i] != '\n') {
+      ++i;
+    }
+    return skipWhitespace(source, i);
   }
   return i;
 }
@@ -558,6 +581,19 @@ void println(char *str) {
 
 Expr *parseExpr(char *source, size_t *ip);
 
+Expr *trySpecialForm(char *ident, char *expectIdent, size_t expectArgs,
+  List *args, Expr *(*makeExpr)(Expr *, Expr *)) {
+  
+  if (strcmp(ident, expectIdent) == 0) {
+    if (listSize(args) != expectArgs) {
+      printf("Error: %s needs %d arguments. Given %d\n", expectIdent, expectArgs, listSize(args));
+      exit(1);
+    }
+    return makeExpr(args->head, args->tail->head);
+  }
+  else return NULL;
+}
+
 Expr *parseApplyExpr(char *source, size_t *ip) {
   size_t i = *ip;
 
@@ -599,30 +635,39 @@ Expr *parseApplyExpr(char *source, size_t *ip) {
   if (func->etype == IdentExpr) {
     char *ident = getIdentExprIdent(func);
     
-    if (strcmp(ident, "decl") == 0) {
-      //if (args->size != 2) {
-      if (listSize(args) != 2) {
-        //printf("Error: decl needs 2 arguments. Given %d\n", args->size); // line number and position would be nice
-        printf("Error: decl needs 2 arguments. Given %d\n", listSize(args)); // line number and position would be nice
-        exit(1); // TODO: better error handling.
-      }
-      return makeDeclExpr(args->head, args->tail->head);
-    }
+    // if (strcmp(ident, "decl") == 0) {
+    //   //if (args->size != 2) {
+    //   if (listSize(args) != 2) {
+    //     //printf("Error: decl needs 2 arguments. Given %d\n", args->size); // line number and position would be nice
+    //     printf("Error: decl needs 2 arguments. Given %d\n", listSize(args)); // line number and position would be nice
+    //     exit(1); // TODO: better error handling.
+    //   }
+    //   return makeDeclExpr(args->head, args->tail->head);
+    // }
 
-    if (strcmp(ident, "fun") == 0) {
-      //if (args->size != 2) {
-      if (listSize(args) != 2) {
-        //printf("Error: fun needs 2 arguments. Given %d\n", args->size);
-        printf("Error: fun needs 2 arguments. Given %d\n", listSize(args));
-        exit(1); // TODO: better error handling.
-      }
-      return makeFunExpr(args->head, args->tail->head);
+    // if (strcmp(ident, "fun") == 0) {
+    //   //if (args->size != 2) {
+    //   if (listSize(args) != 2) {
+    //     //printf("Error: fun needs 2 arguments. Given %d\n", args->size);
+    //     printf("Error: fun needs 2 arguments. Given %d\n", listSize(args));
+    //     exit(1); // TODO: better error handling.
+    //   }
+    //   return makeFunExpr(args->head, args->tail->head);
+    // }
+
+    Expr *specialExpr = NULL;
+    if ((specialExpr = trySpecialForm(ident, "decl", 2, args, &makeDeclExpr)) != NULL ||
+        (specialExpr = trySpecialForm(ident, "fun", 2, args, &makeFunExpr)) != NULL ||
+        (specialExpr = trySpecialForm(ident, "if", 3, args, &makeIfExpr)) != NULL) { // this is just broken until I refactor to makeNExpr TODO: fix
+      return specialExpr;
     }
 
     //TODO: add DefExpr
     //TODO: do I need to handle lambdas here??
   }
-
+  
+  //move preceding into function
+  
   if (func->etype == IdentExpr && reserved(getIdentExprIdent(func))) {
     return makeNativeExpr(func, args);
   }
@@ -953,6 +998,9 @@ int compile(List **program) {
   //printf("}\n");
   
   evalProgram(programBlock);
+  
+  // Expr *main = makeFunExpr(makeApplyExpr(makeIdentExpr("main"), makeListExpr(makeList(makeIdentExpr("int"), NULL))), programBlock);
+  // evalFun(main, globalScope);
 
   freeScope(globalScope);
   return 0;
@@ -989,6 +1037,8 @@ int main(char argc, char **argv) {
   free(source);
 }
 
-// TODO finish implementing blocks / decl / fun --> finish evalFun
-
 // instead of "evalProgram" and "evalFun" I should just have "evalFun" and create a main fun in main.
+
+// TODO: add native functions +, -, *, /
+
+// TODO: refactor into modules
