@@ -179,6 +179,19 @@ Expr *makeTernaryExpr(ExprType etype, Expr *arg1, Expr *arg2, Expr *arg3) {
 //I could abstract these to makeNExpr with int and List* arguments.
 //I think it would require too much refactoring right now.
 
+// Expr *makeNExpr(ExprType etype, int n, List *args) {
+//   assert(listSize(args) == n);
+//   Expr *expr = malloc(sizeof(Expr));
+//   expr->etype = etype;
+//   expr->size = n;
+//   expr->subexprs = malloc(n * sizeof(Expr *));
+//   List *curr = args;
+//   for (int i = 0; i < n; ++i) {
+//     ((Expr **)expr->subexprs)[i] = curr->head;
+//     curr = curr->tail;
+//   }
+// }
+
 
 Expr *makeBlockExpr(Scope *scope, Expr *listExpr) { // TODO : change to using makeBinExpr
   assert(listExpr->etype == ListExpr);
@@ -238,6 +251,22 @@ Expr *makeIfExpr(Expr *cond, List *then_else) {
   assert(listSize(then_else) == 2);
   return makeTernaryExpr(ifExpr, cond, then_else->head, then_else->tail->head);
 }
+
+Expr *makeExprArgs(ExprType type, List *args) {
+  size_t size = listSize(args);
+  Expr *expr = malloc(sizeof(Expr));
+  expr->etype = type;
+  expr->size = size;
+  expr->subexprs = malloc(size * sizeof(Expr *));
+  List *curr = args;
+  for (int i = 0; i < size; ++i) {
+    ((Expr **)expr->subexprs)[i] = curr->head;
+    curr = curr->tail;
+  }
+  return expr;
+  // somehow I should do parity checking on etype and size...
+}
+
 
 Trie *gloabalIdentifiers;
 void initializeGloabalIdentifiers() {
@@ -582,14 +611,15 @@ void println(char *str) {
 Expr *parseExpr(char *source, size_t *ip);
 
 Expr *trySpecialForm(char *ident, char *expectIdent, size_t expectArgs,
-  List *args, Expr *(*makeExpr)(Expr *, Expr *)) {
+  List *args, ExprType etype /*, Expr *(*makeExpr)(Expr *, Expr *)*/) {
   
   if (strcmp(ident, expectIdent) == 0) {
     if (listSize(args) != expectArgs) {
       printf("Error: %s needs %d arguments. Given %d\n", expectIdent, expectArgs, listSize(args));
       exit(1);
     }
-    return makeExpr(args->head, args->tail->head);
+    //return makeExpr(args->head, args->tail->head);
+    return makeExprArgs(etype, args);
   }
   else return NULL;
 }
@@ -656,9 +686,14 @@ Expr *parseApplyExpr(char *source, size_t *ip) {
     // }
 
     Expr *specialExpr = NULL;
-    if ((specialExpr = trySpecialForm(ident, "decl", 2, args, &makeDeclExpr)) != NULL ||
-        (specialExpr = trySpecialForm(ident, "fun", 2, args, &makeFunExpr)) != NULL ||
-        (specialExpr = trySpecialForm(ident, "if", 3, args, &makeIfExpr)) != NULL) { // this is just broken until I refactor to makeNExpr TODO: fix
+    // if ((specialExpr = trySpecialForm(ident, "decl", 2, args, &makeDeclExpr)) != NULL ||
+    //     (specialExpr = trySpecialForm(ident, "fun", 2, args, &makeFunExpr)) != NULL ||
+    //     (specialExpr = trySpecialForm(ident, "if", 3, args, &makeIfExpr)) != NULL) { // this is just broken until I refactor to makeNExpr TODO: fix
+    //   return specialExpr;
+    // }
+    if ((specialExpr = trySpecialForm(ident, "decl", 2, args, DeclExpr)) != NULL ||
+        (specialExpr = trySpecialForm(ident, "fun", 2, args, FunExpr)) != NULL ||
+        (specialExpr = trySpecialForm(ident, "if", 3, args, ifExpr)) != NULL) {
       return specialExpr;
     }
 
@@ -1042,3 +1077,7 @@ int main(char argc, char **argv) {
 // TODO: add native functions +, -, *, /
 
 // TODO: refactor into modules
+
+// TODO: finish implementing ifExpr (ex4 and ex5 cause segfaults)
+
+// TODO: start adding tests
