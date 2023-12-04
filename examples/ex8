@@ -1,0 +1,13 @@
+(decl int n)
+(fun (add (int x) -> (int y) -> int) {
+  (decl int n)
+  (set n x)
+  (decl int m)
+  (set m y)
+  (+ m n)
+})
+(scanf "%d" (& n))
+(decl int m)
+(scanf "%d" (& m))
+(printf "%d\n" (add m n))
+(return 0)

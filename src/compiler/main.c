@@ -808,6 +808,20 @@ void emitExpr(Expr *expr, Scope *scope) {
       emitExpr(getExprSubexpr(expr, 1), scope);
       printf(";\n");
       break;
+    case ifExpr:
+      Expr *cond = getExprSubexpr(expr, 0);
+      Expr *consequent = getExprSubexpr(expr, 1);
+      Expr *alternate = getExprSubexpr(expr, 2);
+      printf("if (");
+      ++level;
+      emitExpr(cond, scope);
+      --level;
+      printf(") {\n");
+      emitExpr(consequent, scope);
+      printf("} else {\n");
+      emitExpr(alternate, scope);
+      printf("}\n");
+      break;
     default:
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
@@ -869,6 +883,69 @@ int evalBlockExpr(Expr *expr) {
   return 0;
 }
 
+Expr *forwardReturn(Expr *expr) {
+  switch (expr->etype) {
+    case BlockExpr:
+      Expr *blockList = getExprSubexpr(expr, 1);
+      List *subexprList = blockList->subexprs;
+      List *curr = subexprList;
+      assert(curr != NULL);
+      while (curr ->tail != NULL) {
+        curr = curr->tail;
+      }
+      curr->head = forwardReturn(curr->head);
+      return expr;
+      break;
+    case ifExpr:
+      Expr *consequent = getExprSubexpr(expr, 1);
+      Expr *alternate = getExprSubexpr(expr, 2);
+      forwardReturn(consequent);
+      forwardReturn(alternate);
+      ((Expr **)(expr->subexprs))[1] = forwardReturn(consequent);
+      ((Expr **)(expr->subexprs))[2] = forwardReturn(alternate);
+      return expr;
+      break;
+    case ApplyExpr:
+    case ValExpr:
+    case IdentExpr:
+      // Expr *returnExpr = makeReturnExpr(expr);
+      // *expr = *returnExpr;    
+      return makeReturnExpr(expr);
+      break;
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+      break;
+  }
+  return NULL;
+}
+
+int evalReturn(Expr *expr, Scope *scope) {
+  assert(expr->etype == ReturnExpr);
+  Expr *returnExpr = getExprSubexpr(expr, 0);
+  switch (returnExpr->etype) {
+    case ifExpr:
+    case BlockExpr:
+      forwardReturn(returnExpr);
+      emitExpr(returnExpr, scope);
+      break;
+    case ReturnExpr:
+      if (returnExpr->etype == ReturnExpr) {
+        return evalReturn(returnExpr, scope);
+      }
+      //else fallthrough
+    case ApplyExpr:
+    case ValExpr:
+    case IdentExpr:
+      emitExpr(expr, scope);
+      break;
+    default:
+      //printf("(%s): Unknown or unimplemented expr type %d\n", __func__, returnExpr->etype);
+      printf("(%s): Bad semantics -- unexpected expr type %d\n", __func__, returnExpr->etype);
+      break;
+  }
+  return 0;
+}
+
 int evalExpr(Expr *expr, Scope *scope) {
   switch (expr->etype) {
     case TypeExpr: //fallthrough
@@ -877,9 +954,11 @@ int evalExpr(Expr *expr, Scope *scope) {
     case ApplyExpr:
     case ListExpr:
     case TypedValExpr: // temporary?
-    case ReturnExpr:
     case DeclExpr:
       emitExpr(expr, scope);
+      break;
+    case ReturnExpr:
+      evalReturn(expr, scope);
       break;
     default:
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
@@ -973,6 +1052,9 @@ void evalFun(Expr *funExpr, Scope *scope) {
       blockExpr = body;
       break;
     case ApplyExpr:
+    case ifExpr:
+    case ValExpr:
+    case IdentExpr:
       blockExpr = makeBlockExpr(localScope, makeListExpr(makeList(body, NULL)));
       break;
     default:
@@ -1078,6 +1160,16 @@ int main(char argc, char **argv) {
 
 // TODO: refactor into modules
 
-// TODO: finish implementing ifExpr (ex4 and ex5 cause segfaults)
-
 // TODO: start adding tests
+
+// TODO: finish implementing ifExpr -- implement evalFun ifExpr case 
+
+// TODO: add type checking
+
+// TODO: fix memory leaks
+
+// TODO: fix block functions so ex7 and ex8 work
+
+// TODO: add indentation to outputted code for readability
+
+// TODO: check evalReturn to make sure arbitrarily nested ifs and blocks word correctly

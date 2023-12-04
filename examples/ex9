@@ -1,0 +1,2 @@
+(fun (r0 (int x) -> int) x)
+(printf "%d" (r0 1))
