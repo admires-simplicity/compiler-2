@@ -9,6 +9,9 @@ struct Scope {
   Scope *parent;
 };
 
+Scope *makeScope(Scope *parent, Trie *identifiers);
+Scope *makeGlobalScope();
+Scope *makeLocalScope(Scope *parent);
 void freeScope(Scope *scope);
 
 #endif

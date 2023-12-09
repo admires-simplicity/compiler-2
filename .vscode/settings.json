@@ -3,6 +3,7 @@
     "trie.h": "c",
     "stdlib.h": "c",
     "value.h": "c",
-    "scope.h": "c"
+    "scope.h": "c",
+    "emitter.h": "c"
   }
 }

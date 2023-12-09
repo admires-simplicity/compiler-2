@@ -165,6 +165,9 @@ Expr *makeExprArgs(ExprType type, List *args) {
   // somehow I should do parity checking on etype and size...
 }
 
+char *getIdentExprIdent(Expr *expr) {
+  return (char *)expr->subexprs;
+}
 
 void freeExprList(List *list) {
   if (list == NULL) {

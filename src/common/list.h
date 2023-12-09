@@ -14,7 +14,6 @@ void printList(List *list);
 int listSize(List *list);
 void reverseList(List **list);
 
-void map(List *list, void (*f)(Expr *));
 
 
 #endif

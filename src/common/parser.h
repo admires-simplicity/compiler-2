@@ -16,6 +16,7 @@ Expr *parseBool(char *source, size_t *ip);
 Expr *parseIntExpr(char *source, size_t *ip);
 Expr *parseIdentifier(char *source, size_t *ip);
 Expr *parseValue(char *source, size_t *ip);
+Expr *parseApplyExpr(char *source, size_t *ip);
 Expr *parseExpr(char *source, size_t *ip);
 
 
