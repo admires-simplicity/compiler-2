@@ -200,21 +200,14 @@ int evalProgram(Expr *program) {
   assert(instructions->etype == ListExpr);
   List *instructionList = instructions->subexprs;
   List *funs = gatherFrom(instructionList, &isFun);
-  //List *decls = gatherFrom(instructionList, &isDecl);
 
   for (List *curr = funs; curr != NULL; curr = curr->tail) {
     evalFun(curr->head, scope);
   }
 
   printf("int main() {\n");
-  //evalInstructionList(instructionList, scope);
   evalBlockExpr(makeBlockExpr(scope, instructions));
   printf("}\n");
-
-  // printf("(%s): decls size: %d\n", __func__, decls->size);
-  // printf("(%s): instructionList size: %d\n", __func__, instructionList->size);
-  // printf("(%s): decls size: %d\n", __func__, listSize(decls));
-  // printf("(%s): instructionList size: %d\n", __func__, listSize(instructionList));
 
   return 0;
 }
@@ -224,23 +217,9 @@ int compile(List **program) {
   reverseList(program);
 
   Expr *programBlock = makeBlockExpr(globalScope, makeListExpr(*program));
-
-  //printf("int main() {\n");
-  
-  // List *curr = *program;
-  // while (curr != NULL) {
-  //   Expr *expr = curr->head;
-  //   emitExpr(expr, globalScope);
-  //   curr = curr->tail;
-  // }
-  
-  //printf("}\n");
   
   evalProgram(programBlock);
   
-  // Expr *main = makeFunExpr(makeApplyExpr(makeIdentExpr("main"), makeListExpr(makeList(makeIdentExpr("int"), NULL))), programBlock);
-  // evalFun(main, globalScope);
-
   freeScope(globalScope);
   return 0;
 }

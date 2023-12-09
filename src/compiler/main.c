@@ -40,6 +40,8 @@ int main(char argc, char **argv) {
 
 // TODO: fix whatever is causing evalFun error in ex6
 
+// TODO: implement for construct (so ex5 works)
+
 // instead of "evalProgram" and "evalFun" I should just have "evalFun" and create a main fun in main.
 
 // TODO: start adding tests

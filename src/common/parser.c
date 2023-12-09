@@ -39,7 +39,6 @@ size_t skipWhitespace(char *source, size_t i) { // maybe I should change this to
     ++i;
   }
   if (source[i] == ';') {
-    //return skipWhitespace(source, skipComment(source, i));
     while (source[i] != '\n') {
       ++i;
     }

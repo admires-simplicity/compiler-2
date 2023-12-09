@@ -6,7 +6,6 @@
 
 List *makeList(void *head, List *tail) {
   List *list = malloc(sizeof(List));
-  //list->size = tail == NULL ? 1 : tail->size + 1;
   list->head = head;
   list->tail = tail;
   return list;
@@ -57,7 +56,6 @@ void reverseList(List **list) {
   List *prev = NULL;
   List *curr = *list;
   List *next = NULL;
-  //size_t size = (*list)->size;
   while (curr != NULL) {
     next = curr->tail;
     curr->tail = prev;
@@ -65,9 +63,4 @@ void reverseList(List **list) {
     curr = next;
   }
   *list = prev;
-
-  // while (prev != NULL) {
-  //   prev->size = size--; //set and dec.
-  //   prev = prev->tail;
-  // }
 }
