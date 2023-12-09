@@ -26,6 +26,8 @@ typedef struct {
   void *subexprs;
 } Expr;
 
+extern size_t exprArity[];
+
 Expr *makeValExpr(ValType type, void *val);
 Expr *makeIdentExpr(char *ident);
 Expr *makeApplyExpr(Expr *func, Expr *args);
@@ -48,6 +50,5 @@ char *getIdentExprIdent(Expr *expr);
 
 void freeExprList(List *list);
 void freeExpr(void *ptr);
-
 
 #endif

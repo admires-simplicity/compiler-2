@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
-#include <stdbool.h>
 #include <stdarg.h>
 
 #include "../common/trie.h"
@@ -22,12 +20,16 @@ int main(char argc, char **argv) {
 
   char *source = readSource(argv[1]);
 
+  initParser();
+
   size_t si = 0;
   while (source[si] != '\0') {
     si = skipWhitespace(source, si);
     Expr *expr = parseExpr(source, &si);
     if (expr != NULL) program = makeList(expr, program);
   }
+
+  freeParser();
 
   compile(&program);
 

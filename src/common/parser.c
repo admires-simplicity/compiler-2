@@ -7,6 +7,8 @@
 #include "list.h"
 #include "identifiers.h"
 
+Trie *specialForms = NULL;
+
 /* Copy contents of file into string.
  */
 char *readSource(char *filename) {
@@ -155,18 +157,17 @@ Expr *parseValue(char *source, size_t *ip) {
   exit(1);
 }
 
-Expr *trySpecialForm(char *ident, char *expectIdent, size_t expectArgs,
-  List *args, ExprType etype /*, Expr *(*makeExpr)(Expr *, Expr *)*/) {
-  
-  if (strcmp(ident, expectIdent) == 0) {
-    if (listSize(args) != expectArgs) {
-      printf("Error: %s needs %d arguments. Given %d\n", expectIdent, expectArgs, listSize(args));
-      exit(1);
-    }
-    //return makeExpr(args->head, args->tail->head);
-    return makeExprArgs(etype, args);
+Expr *trySpecialForm(char *ident, List *args) {
+  ExprType etype = (ExprType)trieGet(specialForms, ident);
+  if ((void *)etype == NULL) return NULL; // this is sort of bad because
+  // (void *)etype evaluates to 0 for ValExpr which is equal to NULL, but it
+  // doesn't really matter because ValExpr isn't a special form anyway.
+  size_t expectArgs = exprArity[etype];
+  if (listSize(args) != expectArgs) {
+    printf("Error: %s needs %d arguments. Given %d\n", ident, expectArgs, listSize(args));
+    exit(1);
   }
-  else return NULL;
+  return makeExprArgs(etype, args);
 }
 
 Expr *parseApplyExpr(char *source, size_t *ip) {
@@ -210,35 +211,8 @@ Expr *parseApplyExpr(char *source, size_t *ip) {
   if (func->etype == IdentExpr) {
     char *ident = getIdentExprIdent(func);
     
-    // if (strcmp(ident, "decl") == 0) {
-    //   //if (args->size != 2) {
-    //   if (listSize(args) != 2) {
-    //     //printf("Error: decl needs 2 arguments. Given %d\n", args->size); // line number and position would be nice
-    //     printf("Error: decl needs 2 arguments. Given %d\n", listSize(args)); // line number and position would be nice
-    //     exit(1); // TODO: better error handling.
-    //   }
-    //   return makeDeclExpr(args->head, args->tail->head);
-    // }
-
-    // if (strcmp(ident, "fun") == 0) {
-    //   //if (args->size != 2) {
-    //   if (listSize(args) != 2) {
-    //     //printf("Error: fun needs 2 arguments. Given %d\n", args->size);
-    //     printf("Error: fun needs 2 arguments. Given %d\n", listSize(args));
-    //     exit(1); // TODO: better error handling.
-    //   }
-    //   return makeFunExpr(args->head, args->tail->head);
-    // }
-
     Expr *specialExpr = NULL;
-    // if ((specialExpr = trySpecialForm(ident, "decl", 2, args, &makeDeclExpr)) != NULL ||
-    //     (specialExpr = trySpecialForm(ident, "fun", 2, args, &makeFunExpr)) != NULL ||
-    //     (specialExpr = trySpecialForm(ident, "if", 3, args, &makeIfExpr)) != NULL) { // this is just broken until I refactor to makeNExpr TODO: fix
-    //   return specialExpr;
-    // }
-    if ((specialExpr = trySpecialForm(ident, "decl", 2, args, DeclExpr)) != NULL ||
-        (specialExpr = trySpecialForm(ident, "fun", 2, args, FunExpr)) != NULL ||
-        (specialExpr = trySpecialForm(ident, "if", 3, args, ifExpr)) != NULL) {
+    if (specialExpr = trySpecialForm(ident, args)) {
       return specialExpr;
     }
 
@@ -277,4 +251,15 @@ Expr *parseExpr(char *source, size_t *ip) {
       *ip = i;
       return valExpr;
   }
+}
+
+void initParser() {
+  specialForms = makeTrie();
+  trieAdd(specialForms, "decl", (void *)DeclExpr);
+  trieAdd(specialForms, "fun", (void *)FunExpr);
+  trieAdd(specialForms, "if", (void *)ifExpr);
+}
+
+void freeParser() {
+  freeTrie(specialForms);
 }

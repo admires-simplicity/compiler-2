@@ -7,6 +7,20 @@
 #include "list.h"
 #include "scope.h"
 
+size_t exprArity[] = {
+  [ValExpr] = 1,
+  [IdentExpr] = 0,
+  [ApplyExpr] = 2,
+  [TypeExpr] = 1,
+  [ListExpr] = 1,
+  [DeclExpr] = 2,
+  [FunExpr] = 2,
+  [BlockExpr] = 2,
+  [TypedValExpr] = 2,
+  [ReturnExpr] = 1,
+  [ifExpr] = 3,
+};
+
 // maybe this should be void **getSubexpr ?
 Expr *getExprSubexpr(Expr *expr, size_t i) {
   return ((Expr **)(expr->subexprs))[i];

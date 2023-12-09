@@ -19,5 +19,8 @@ Expr *parseValue(char *source, size_t *ip);
 Expr *parseApplyExpr(char *source, size_t *ip);
 Expr *parseExpr(char *source, size_t *ip);
 
+void initParser();
+void freeParser();
+
 
 #endif
