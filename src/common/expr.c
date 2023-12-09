@@ -74,10 +74,6 @@ Expr *makeApplyExpr(Expr *func, Expr *args) {
 Expr *makeListExpr(List *list) {
   Expr *expr = malloc(sizeof(Expr));
   expr->etype = ListExpr;
-  //expr->size = list->size;
-  // List **list_ptr = malloc(sizeof(List *));
-  // *list_ptr = list;
-  // expr->subexprs = list_ptr;
   expr->subexprs = list;
   return expr;
 }
@@ -158,7 +154,6 @@ Expr *makeTypeExpr(Expr *type) {
 
 Expr *makeTypedValExpr(Expr *type, Expr *ident) {
   assert(type->etype == IdentExpr); // TODO: make better. add actual type checking.
-  //printf("%d\n", ident->etype);
   //assert(ident->etype == IdentExpr);
   assert(ident->etype == ListExpr);
   assert(((Expr *)(((List *)ident->subexprs)->head))->etype == IdentExpr);
@@ -218,12 +213,8 @@ void freeExprList(List *list) {
  */
 void freeExpr(void *ptr) {
   Expr *expr = (Expr *)ptr;
-  //static int c = 0;
-  //printf("freeing expr %d etype %d\n", ++c, expr->etype);
   switch (expr->etype) {
     case ValExpr:
-      //static int d = 0;
-      //printf("\tfreeing val expr %d vtype %d\n", ++d, ((Val *)expr->subexprs)->vtype);
       freeValue(expr->subexprs);
       break;
     case IdentExpr:

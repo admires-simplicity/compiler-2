@@ -22,13 +22,7 @@ int evalBlockExpr(Expr *expr) {
   Scope *scope = (Scope *)getExprSubexpr(expr, 0);
   Expr *listExpr = getExprSubexpr(expr, 1);
   List *subexprList = listExpr->subexprs;
-  //List *decls = gatherFrom(subexprList, &isDecl);
   List *funs = gatherFrom(subexprList, &isFun);
-
-  // printf("decls size: %d\n", decls->size);
-  // printf("subexprList size: %d\n", subexprList->size);
-  //printf("(%s): decls size: %d\n", __func__, listSize(decls));
-  //printf("(%s): subexprList size: %d\n", __func__, listSize(subexprList));
 
   for (List *curr = funs; curr != NULL; curr = curr->tail) {
     evalFun(curr->head, scope);
@@ -98,7 +92,6 @@ int evalReturn(Expr *expr, Scope *scope) {
       emitExpr(expr, scope);
       break;
     default:
-      //printf("(%s): Unknown or unimplemented expr type %d\n", __func__, returnExpr->etype);
       printf("(%s): Bad semantics -- unexpected expr type %d\n", __func__, returnExpr->etype);
       break;
   }
@@ -107,21 +100,6 @@ int evalReturn(Expr *expr, Scope *scope) {
 
 int evalExpr(Expr *expr, Scope *scope) {
   switch (expr->etype) {
-    // case TypeExpr: //fallthrough
-    // case ValExpr:
-    // case IdentExpr:
-    // case ApplyExpr:
-    // case ListExpr:
-    // case TypedValExpr: // temporary?
-    // case DeclExpr:
-    //   emitExpr(expr, scope);
-    //   break;
-    // case ReturnExpr:
-    //   evalReturn(expr, scope);
-    //   break;
-    // default:
-    //   printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
-    //   break;
     case ReturnExpr:
       evalReturn(expr, scope);
       break;
@@ -132,10 +110,6 @@ int evalExpr(Expr *expr, Scope *scope) {
   return 0;
 }
 
-// int evalDeclList(List *declList, Scope *scope) {
-
-// }
-
 List *evalTypes(Expr *typeListExpr) {
   return NULL;
 }
@@ -143,7 +117,6 @@ List *evalTypes(Expr *typeListExpr) {
 Expr *interpretType(Expr *typeExpr) {
   switch (typeExpr->etype) {
     case IdentExpr:
-      //return makeTypedValExpr(typeExpr, NULL); // Type, NULL (type without identifier)
       return makeTypeExpr(typeExpr);
     case ApplyExpr:
       return makeTypedValExpr(getExprSubexpr(typeExpr, 0), getExprSubexpr(typeExpr, 1)); // Type, Name
@@ -183,20 +156,15 @@ void evalFun(Expr *funExpr, Scope *scope) {
     // we have to deduce types and declare typed values in the scope of the function for each argument
     
     args = makeList(interpretType(curr->head), args);
-    //args = makeList(makeTypedValExpr(getExprSubexpr(curr->head, 0), getExprSubexpr(curr->head, 1)), args);
     curr = curr->tail;
   }
-  //returnType = curr->head;
   returnType = interpretType(curr->head);
   reverseList(&args);
 
-  evalExpr(returnType, scope); // I don't think it really matters whether I pass scope or localScope here, except if I maybe want to allow type shadowing... which seems bad.
+  evalExpr(returnType, scope); // I don't think it really matters whether I pass
+  // scope or localScope here, except if I maybe want to allow type shadowing...
+  // which seems bad.
   printf(" %s(", ident);
-  //map(args, &evalExpr); // maybe should be "evalTypedValExpr" or something
-  // for (List *curr = args; curr != NULL; curr = curr->tail) {
-  //   evalExpr(curr->head, scope);
-  //   if (curr->tail != NULL) printf(", ");
-  // }
   Expr *argListExpr = makeListExpr(args);
   evalExpr(argListExpr, scope);
   printf(") {\n");

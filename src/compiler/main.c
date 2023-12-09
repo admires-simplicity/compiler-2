@@ -38,15 +38,12 @@ int main(char argc, char **argv) {
   free(source);
 }
 
+// TODO: fix whatever is causing evalFun error in ex6
+
 // instead of "evalProgram" and "evalFun" I should just have "evalFun" and create a main fun in main.
 
-// TODO: add native functions +, -, *, /
-
-// TODO: refactor into modules
-
 // TODO: start adding tests
-
-// TODO: finish implementing ifExpr -- implement evalFun ifExpr case 
+// --> TODO: write Expr *parseString(char *str) so I can write better tests
 
 // TODO: add type checking
 
@@ -55,8 +52,6 @@ int main(char argc, char **argv) {
 // TODO: fix block functions so ex7 and ex8 work
 
 // TODO: add indentation to outputted code for readability
-
-// TODO: check evalReturn to make sure arbitrarily nested ifs and blocks word correctly
 
 // TODO: check if nested function definitions are working (I don't think they
 //       should be) and fix them if not
