@@ -65,24 +65,17 @@ Expr *forwardReturn(Expr *expr) {
     case ifExpr:
       Expr *consequent = getExprSubexpr(expr, 1);
       Expr *alternate = getExprSubexpr(expr, 2);
-      forwardReturn(consequent);
-      forwardReturn(alternate);
       ((Expr **)(expr->subexprs))[1] = forwardReturn(consequent);
       ((Expr **)(expr->subexprs))[2] = forwardReturn(alternate);
       return expr;
       break;
-    case ApplyExpr:
-    case ValExpr:
-    case IdentExpr:
-      // Expr *returnExpr = makeReturnExpr(expr);
-      // *expr = *returnExpr;    
-      return makeReturnExpr(expr);
-      break;
     default:
+      if (arithmeticExpr(expr)) {
+        return makeReturnExpr(expr);
+      }
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
-      break;
+      return NULL;
   }
-  return NULL;
 }
 
 int evalReturn(Expr *expr, Scope *scope) {
@@ -114,22 +107,29 @@ int evalReturn(Expr *expr, Scope *scope) {
 
 int evalExpr(Expr *expr, Scope *scope) {
   switch (expr->etype) {
-    case TypeExpr: //fallthrough
-    case ValExpr:
-    case IdentExpr:
-    case ApplyExpr:
-    case ListExpr:
-    case TypedValExpr: // temporary?
-    case DeclExpr:
-      emitExpr(expr, scope);
-      break;
+    // case TypeExpr: //fallthrough
+    // case ValExpr:
+    // case IdentExpr:
+    // case ApplyExpr:
+    // case ListExpr:
+    // case TypedValExpr: // temporary?
+    // case DeclExpr:
+    //   emitExpr(expr, scope);
+    //   break;
+    // case ReturnExpr:
+    //   evalReturn(expr, scope);
+    //   break;
+    // default:
+    //   printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+    //   break;
     case ReturnExpr:
       evalReturn(expr, scope);
       break;
     default:
-      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+      emitExpr(expr, scope);
       break;
   }
+  return 0;
 }
 
 // int evalDeclList(List *declList, Scope *scope) {

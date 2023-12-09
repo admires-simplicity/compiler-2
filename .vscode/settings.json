@@ -4,6 +4,8 @@
     "stdlib.h": "c",
     "value.h": "c",
     "scope.h": "c",
-    "emitter.h": "c"
+    "emitter.h": "c",
+    "string.h": "c",
+    "stdio.h": "c"
   }
 }

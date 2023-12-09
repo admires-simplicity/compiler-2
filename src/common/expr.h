@@ -2,6 +2,7 @@
 #define EXPR_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include "value.h"
 #include "list.h"
 #include "scope.h"
@@ -18,6 +19,24 @@ typedef enum {
   TypedValExpr,
   ReturnExpr,
   ifExpr,
+
+  PlusExpr,
+  MinusExpr,
+  TimesExpr,
+  DivideExpr,
+  ModExpr,
+  LessExpr,
+  LessEqExpr,
+  GreaterExpr,
+  GreaterEqExpr,
+  EqExpr,
+  AndExpr,
+  OrExpr,
+  XorExpr,
+  NotExpr,
+  NegExpr,
+
+
 } ExprType;
 
 typedef struct {
@@ -47,6 +66,8 @@ Expr *makeExprArgs(ExprType type, List *args);
 
 Expr *getExprSubexpr(Expr *expr, size_t i);
 char *getIdentExprIdent(Expr *expr);
+
+bool arithmeticExpr(Expr *expr);
 
 void freeExprList(List *list);
 void freeExpr(void *ptr);

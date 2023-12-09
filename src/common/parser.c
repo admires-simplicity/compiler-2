@@ -162,9 +162,17 @@ Expr *trySpecialForm(char *ident, List *args) {
   if ((void *)etype == NULL) return NULL; // this is sort of bad because
   // (void *)etype evaluates to 0 for ValExpr which is equal to NULL, but it
   // doesn't really matter because ValExpr isn't a special form anyway.
+  
+  if (etype == MinusExpr && listSize(args) == 1) {
+    return makeExprArgs(NegExpr, args);
+  }
+  
   size_t expectArgs = exprArity[etype];
   if (listSize(args) != expectArgs) {
     printf("Error: %s needs %d arguments. Given %d\n", ident, expectArgs, listSize(args));
+    //slightly unfortunate:
+    //"-" given not 1 or 2 args will output "error: needs 2 args." -- instead of
+    //"2 or 1"
     exit(1);
   }
   return makeExprArgs(etype, args);
@@ -258,6 +266,23 @@ void initParser() {
   trieAdd(specialForms, "decl", (void *)DeclExpr);
   trieAdd(specialForms, "fun", (void *)FunExpr);
   trieAdd(specialForms, "if", (void *)ifExpr);
+
+  trieAdd(specialForms, "+", (void *)PlusExpr);
+  trieAdd(specialForms, "-", (void *)MinusExpr);
+  trieAdd(specialForms, "*", (void *)TimesExpr);
+  trieAdd(specialForms, "/", (void *)DivideExpr);
+  trieAdd(specialForms, "%%", (void *)ModExpr);
+  trieAdd(specialForms, "<", (void *)LessExpr);
+  trieAdd(specialForms, "<=", (void *)LessEqExpr);
+  trieAdd(specialForms, ">", (void *)GreaterExpr);
+  trieAdd(specialForms, ">=", (void *)GreaterEqExpr);
+  trieAdd(specialForms, "=", (void *)EqExpr);
+  
+  trieAdd(specialForms, "and", (void *)AndExpr);
+  trieAdd(specialForms, "or", (void *)OrExpr);
+  trieAdd(specialForms, "xor", (void *)XorExpr);
+
+  trieAdd(specialForms, "not", (void *)NotExpr);
 }
 
 void freeParser() {

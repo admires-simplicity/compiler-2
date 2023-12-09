@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "expr.h"
 #include "value.h"
@@ -19,6 +20,23 @@ size_t exprArity[] = {
   [TypedValExpr] = 2,
   [ReturnExpr] = 1,
   [ifExpr] = 3,
+
+  [PlusExpr] = 2,
+  [MinusExpr] = 2,
+  [TimesExpr] = 2,
+  [DivideExpr] = 2,
+  [ModExpr] = 2,
+  [LessExpr] = 2,
+  [LessEqExpr] = 2,
+  [GreaterExpr] = 2,
+  [GreaterEqExpr] = 2,
+  [EqExpr] = 2,
+  [AndExpr] = 2,
+  [OrExpr] = 2,
+  [XorExpr] = 2,
+  [NotExpr] = 1,
+  [NegExpr] = 1,
+
 };
 
 // maybe this should be void **getSubexpr ?
@@ -238,4 +256,36 @@ void freeExpr(void *ptr) {
       break;
   }
   free(expr);
+}
+
+/* Maybe poorly named.
+ * Check if expr is a returnable expression.
+ * maybe "hasValue" is better?
+ * but "hasValue" should work for basically all expressions
+ * in particular it would be cool if it worked for TypeExpr
+ */
+bool arithmeticExpr(Expr *expr) {
+  switch (expr->etype) {
+    case ValExpr:
+    case IdentExpr:
+    case ApplyExpr:
+    case PlusExpr:
+    case MinusExpr:
+    case TimesExpr:
+    case DivideExpr:
+    case ModExpr:
+    case LessExpr:
+    case LessEqExpr:
+    case GreaterExpr:
+    case GreaterEqExpr:
+    case EqExpr:
+    case AndExpr:
+    case OrExpr:
+    case XorExpr:
+    case NotExpr:
+    case NegExpr:
+      return true;
+    default:
+      return false;
+  }
 }

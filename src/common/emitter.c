@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "emitter.h"
 #include "expr.h"
@@ -7,6 +8,98 @@
 #include "compiler.h" // this feels bad?  TODO: remove?
 
 #include "printer.h"
+
+bool unaryEmitType(Expr *expr) {
+  switch (expr->etype) {
+    case NotExpr:
+    case NegExpr:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool binEmitType(Expr *expr) {
+  switch (expr->etype) {
+    case PlusExpr:
+    case MinusExpr:
+    case TimesExpr:
+    case DivideExpr:
+    case ModExpr:
+    case LessExpr:
+    case LessEqExpr:
+    case GreaterExpr:
+    case GreaterEqExpr:
+    case EqExpr:
+    case AndExpr:
+    case OrExpr:
+    case XorExpr:
+      return true;
+    default:
+      return false;
+  }
+}
+
+void emitUnOp(Expr *expr) {
+  switch (expr->etype) {
+    case NotExpr:
+      printf("!");
+      break;
+    case NegExpr:
+      printf("-");
+      break;
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+      break;
+  }
+}
+
+void emitBinOp(Expr *expr) {
+  switch (expr->etype) {
+    case PlusExpr:
+      printf("+");
+      break;
+    case MinusExpr:
+      printf("-");
+      break;
+    case TimesExpr:
+      printf("*");
+      break;
+    case DivideExpr:
+      printf("/");
+      break;
+    case ModExpr:
+      printf("%%");
+      break;
+    case LessExpr:
+      printf("<");
+      break;
+    case LessEqExpr:
+      printf("<=");
+      break;
+    case GreaterExpr:
+      printf(">");
+      break;
+    case GreaterEqExpr:
+      printf(">=");
+      break;
+    case EqExpr:
+      printf("==");
+      break;
+    case AndExpr:
+      printf("&&");
+      break;
+    case OrExpr:
+      printf("||");
+      break;
+    case XorExpr:
+      printf("^");
+      break;
+    default:
+      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
+      break;
+  }
+}
 
 void emitExpr(Expr *expr, Scope *scope) {
   static int level = 0;
@@ -72,6 +165,17 @@ void emitExpr(Expr *expr, Scope *scope) {
       printf("}\n");
       break;
     default:
+      if (unaryEmitType(expr)) {
+        emitUnOp(expr);
+        emitExpr(getExprSubexpr(expr, 0), scope);
+        break;
+      }
+      else if (binEmitType(expr)) {
+        emitExpr(getExprSubexpr(expr, 0), scope);
+        emitBinOp(expr);
+        emitExpr(getExprSubexpr(expr, 1), scope);
+        break;
+      }
       printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
       break;
   }
