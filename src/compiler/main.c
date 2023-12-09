@@ -6,265 +6,20 @@
 #include <stdarg.h>
 
 #include "../common/trie.h"
+#include "../common/list.h"
+#include "../common/value.h"
+#include "../common/expr.h"
+#include "../common/scope.h"
+#include "../common/parser.h"
 
-typedef enum {
-  IntVal,
-  BoolVal,
-  StringVal,
-} ValType;
 
-typedef struct {
-  ValType vtype;
-  void *val;
-} Val;
-
-typedef enum {
-  ValExpr,
-  IdentExpr,
-  ApplyExpr,
-  TypeExpr,
-  ListExpr,
-  DeclExpr,
-  FunExpr,
-  BlockExpr,
-  TypedValExpr,
-  ReturnExpr,
-  ifExpr,
-} ExprType;
-
-typedef struct {
-  ExprType etype;
-  size_t size;
-  void *subexprs;
-} Expr;
-
-typedef struct List List;
-struct List {
-  //size_t size;
-  void *head;
-  List *tail;
-};
-
-typedef struct Scope Scope;
-struct Scope {
-  Trie *identifiers;
-  Scope *parent;
-};
-
-void freeScope(Scope *scope);
-char *getIdentExprIdent(Expr *expr);
 void evalFun(Expr *funExpr, Scope *scope);
 int evalExpr(Expr *expr, Scope *scope);
-int listSize(List *list);
 
-
-
-
-// maybe this should be void **getSubexpr ? (can you do (void **) ?)
-Expr *getExprSubexpr(Expr *expr, size_t i) {
-  return ((Expr **)(expr->subexprs))[i];
-}
-
-List *makeList(void *head, List *tail) {
-  List *list = malloc(sizeof(List));
-  //list->size = tail == NULL ? 1 : tail->size + 1;
-  list->head = head;
-  list->tail = tail;
-  return list;
-}
-
-void freeList(List *list) {
-  if (list->tail != NULL) {
-    freeList(list->tail);
-  }
-  //free(list->head); // is this right?
-  free(list);
-}
-
-void freeListWith(List *list, void (*freeValue)(void *)) {
-  if (list->tail != NULL) {
-    freeListWith(list->tail, freeValue);
-  }
-  freeValue(list->head);
-  free(list);
-}
-
-/* Prints a list. Only works for char* list.
- */
-void printList(List *list) {
-  printf("[");
-  while (list != NULL) {
-    printf("%s", (char *)list->head);
-    if (list->tail != NULL) {
-      printf(", ");
-    }
-    list = list->tail;
-  }
-  printf("]\n");
-}
-
-Val *makeVal(ValType type, void *val) {
-  Val *v = malloc(sizeof(Val));
-  v->vtype = type;
-  v->val = val;
-  return v;
-}
-
-Expr *makeValExpr(ValType type, void *val) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = ValExpr;
-  expr->size = 1;
-  expr->subexprs = makeVal(type, val);
-  return expr;
-}
-
-Expr *makeIdentExpr(char *ident) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = IdentExpr;
-  expr->size = 1;
-  expr->subexprs = ident;
-  return expr;
-}
-
-Expr *makeApplyExpr(Expr *func, Expr *args) { // TODO: change to using makeBinExpr
-  assert(args->etype == ListExpr);
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = ApplyExpr;
-  expr->size = 2;
-  expr->subexprs = malloc(expr->size);
-  ((Expr **)expr->subexprs)[0] = func;
-  ((Expr **)expr->subexprs)[1] = args;
-  return expr;
-}
-
-Expr *makeListExpr(List *list) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = ListExpr;
-  //expr->size = list->size;
-  // List **list_ptr = malloc(sizeof(List *));
-  // *list_ptr = list;
-  // expr->subexprs = list_ptr;
-  expr->subexprs = list;
-  return expr;
-}
-
-Expr *makeUnaryExpr(ExprType etype, Expr *arg) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = etype;
-  expr->size = 1;
-  expr->subexprs = malloc(sizeof(Expr *));
-  ((Expr **)expr->subexprs)[0] = arg;
-  return expr;
-}
-
-Expr *makeBinExpr(ExprType etype, Expr *arg1, Expr *arg2) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = etype;
-  expr->size = 2;
-  expr->subexprs = malloc(2 * sizeof(Expr *));
-  ((Expr **)expr->subexprs)[0] = arg1;
-  ((Expr **)expr->subexprs)[1] = arg2;
-  return expr;
-}
-Expr *makeTernaryExpr(ExprType etype, Expr *arg1, Expr *arg2, Expr *arg3) {
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = etype;
-  expr->size = 3;
-  expr->subexprs = malloc(3 * sizeof(Expr *));
-  ((Expr **)expr->subexprs)[0] = arg1;
-  ((Expr **)expr->subexprs)[1] = arg2;
-  ((Expr **)expr->subexprs)[2] = arg3;
-  return expr;
-}
-//I could abstract these to makeNExpr with int and List* arguments.
-//I think it would require too much refactoring right now.
-
-// Expr *makeNExpr(ExprType etype, int n, List *args) {
-//   assert(listSize(args) == n);
-//   Expr *expr = malloc(sizeof(Expr));
-//   expr->etype = etype;
-//   expr->size = n;
-//   expr->subexprs = malloc(n * sizeof(Expr *));
-//   List *curr = args;
-//   for (int i = 0; i < n; ++i) {
-//     ((Expr **)expr->subexprs)[i] = curr->head;
-//     curr = curr->tail;
-//   }
-// }
-
-
-Expr *makeBlockExpr(Scope *scope, Expr *listExpr) { // TODO : change to using makeBinExpr
-  assert(listExpr->etype == ListExpr);
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = BlockExpr;
-  expr->size = 2;
-  expr->subexprs = malloc(sizeof(Scope *) + sizeof(Expr *));
-  ((Scope **)expr->subexprs)[0] = scope; // hack?
-  ((Expr **)expr->subexprs)[1] = listExpr;
-  return expr;
-}
-
-Expr *makeDeclExpr(Expr *typeExpr, Expr *identExpr) {
-  //assert(typeExpr->etype == TypeExpr); // TODO
-  assert(identExpr->etype == IdentExpr);
-  return makeBinExpr(DeclExpr, typeExpr, identExpr);
-}
-
-Expr *makeFunExpr(Expr *type, Expr *body) {
-  //assert(type->etype == TypeExpr); // TODO
-  //assert(body->etype == BlockExpr || body->etype == ApplyExpr);
-  return makeBinExpr(FunExpr, type, body);
-}
-
-Expr *makeTypeExpr(Expr *type) {
-  assert(type->etype == IdentExpr);
-  return makeUnaryExpr(TypeExpr, type);
-}
-
-Expr *makeTypedValExpr(Expr *type, Expr *ident) {
-  assert(type->etype == IdentExpr); // TODO: make better. add actual type checking.
-  //printf("%d\n", ident->etype);
-  //assert(ident->etype == IdentExpr);
-  assert(ident->etype == ListExpr);
-  assert(((Expr *)(((List *)ident->subexprs)->head))->etype == IdentExpr);
-  return makeBinExpr(TypedValExpr, type, ((List *)ident->subexprs)->head);
-}
-
-Expr *makeReturnExpr(Expr *expr) {
-  return makeUnaryExpr(ReturnExpr, expr);
-}
 
 bool reserved(char *ident) {
   //change this to checking if ident is in trie
   return strcmp(ident, "return") == 0;
-}
-
-Expr *makeNativeExpr(Expr *func, List *args) {
-  char *ident = getIdentExprIdent(func);
-  if (strcmp(ident, "return") == 0) {
-    assert(listSize(args) == 1);
-    return makeReturnExpr(args->head);
-  }
-}
-
-Expr *makeIfExpr(Expr *cond, List *then_else) {
-  assert(listSize(then_else) == 2);
-  return makeTernaryExpr(ifExpr, cond, then_else->head, then_else->tail->head);
-}
-
-Expr *makeExprArgs(ExprType type, List *args) {
-  size_t size = listSize(args);
-  Expr *expr = malloc(sizeof(Expr));
-  expr->etype = type;
-  expr->size = size;
-  expr->subexprs = malloc(size * sizeof(Expr *));
-  List *curr = args;
-  for (int i = 0; i < size; ++i) {
-    ((Expr **)expr->subexprs)[i] = curr->head;
-    curr = curr->tail;
-  }
-  return expr;
-  // somehow I should do parity checking on etype and size...
 }
 
 
@@ -277,151 +32,7 @@ void initializeGloabalIdentifiers() {
   trieAdd(gloabalIdentifiers, "add", makeValExpr(ValExpr, NULL));
 }
 
-size_t skipComment(char *source, size_t i) {
-  while (source[i] != '\n') {
-    ++i;
-  }
-  return i;
-}
 
-size_t skipWhitespace(char *source, size_t i) { // maybe I should change this to size_t *i
-  while (source[i] == ' ' || source[i] == '\n' || source[i] == '\t') {
-    ++i;
-  }
-  if (source[i] == ';') {
-    //return skipWhitespace(source, skipComment(source, i));
-    while (source[i] != '\n') {
-      ++i;
-    }
-    return skipWhitespace(source, i);
-  }
-  return i;
-}
-
-bool identChar(char c) {
-  switch (c) {
-    case ' ':
-    case '\n':
-    case '\t':
-    case '(':
-    case ')':
-    case ';':
-    case '\0':
-      return false;
-    default:
-      return true;
-  }
-}
-
-Expr *parseStringValue(char *source, size_t *ip) {
-  size_t i = *ip;
-  size_t j = i + 1;
-  while (source[j] != '"') {
-    j++;
-  }
-  char *val = malloc((j - i + 1) * sizeof(char));
-  strncpy(val, source + i + 1, j - i - 1);
-  val[j - i - 1] = '\0';
-  *ip = j + 1;
-  return makeValExpr(StringVal, val);
-}
-
-Expr *parseBool(char *source, size_t *ip) {
-  size_t i = *ip;
-  if (source[i + 1] == 't') {
-    *ip = i + 2;
-    return makeValExpr(BoolVal, (void *)1);
-  }
-  if (source[i + 1] == 'f') {
-    *ip = i + 2;
-    return makeValExpr(BoolVal, (void *)0);
-  } 
-  else {
-    printf("Malformed bool #%c\n", source[i+1]);
-    exit(1);
-  }
-}
-
-Expr *parseIntExpr(char *source, size_t *ip) {
-  size_t i = *ip;
-  size_t j = i + 1;
-  while (source[j] >= '0' && source[j] <= '9') {
-    j++;
-  }
-  char *val = malloc((j - i + 1) * sizeof(char));
-  strncpy(val, source + i, j - i);
-  val[j - i] = '\0';
-  int *int_val = malloc(sizeof(int));
-  *int_val = atoi(val);
-  free(val);
-  *ip = j;
-  return makeValExpr(IntVal, int_val);
-}
-
-Expr *parseIdentifier(char *source, size_t *ip) {
-  size_t i = *ip;
-  size_t j = i + 1;
-  while (identChar(source[j])) {
-    j++;
-  }
-  char *ident = malloc((j - i + 1) * sizeof(char));
-  strncpy(ident, source + i, j - i);
-  ident[j - i] = '\0';
-  *ip = j;
-
-  return makeIdentExpr(ident);
-}
-
-Expr *parseValue(char *source, size_t *ip) {
-  size_t i = *ip;
-
-  i = skipWhitespace(source, i);
-
-  if (source == NULL) {
-    printf("Error: source is NULL\n");
-    exit(1);
-  }
-
-  if (source[i] == '\0') {
-    *ip = i;
-    return NULL;
-  }
-
-  if (source[i] == '"') {
-    return parseStringValue(source, ip);
-  }
-
-  if (source[i] == '#') {
-    return parseBool(source, ip);
-  }
-
-  if (source[i] >= '0' && source[i] <= '9') {
-    return parseIntExpr(source, ip);
-  }
-
-  if (identChar(source[i])) {
-    return parseIdentifier(source, ip);
-  }
-
-  printf("Unknown or unimplemented value type %d\n", source[i]);
-  exit(1);
-}
-
-char *readSource(char *filename) {
-  FILE *fp = fopen(filename, "r");
-  if (fp == NULL) {
-    printf("Error opening file %s\n", filename);
-    exit(1);
-  }
-  fseek(fp, 0, SEEK_END);
-  size_t size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-  char *source = malloc(size + 1);
-  fread(source, 1, size, fp);
-  source[size] = '\0';
-  fclose(fp);
-  return source;
-}
 
 void printValExpr(Expr *expr) {
   // //switch ((ValType)expr->subexprs) {
@@ -459,13 +70,6 @@ void printValExpr(Expr *expr) {
 void printIdentExpr(Expr *expr) {
   printf("%s", (char *)expr->subexprs);
 }
-
-
-
-void *getValExprValue(Expr *expr) {
-  return ((Val *)(expr->subexprs))->val;
-}
-
 
 void printExpr(Expr *expr) {
   //static int c = 0;
@@ -505,98 +109,6 @@ void printExpr(Expr *expr) {
   }
 }
 
-void freeValue(Val *val) {
-  free(val->val);
-  free(val);
-}
-
-/*
- * must be passed Expr ptr
- */
-void freeExpr(void *ptr) {
-  Expr *expr = (Expr *)ptr;
-  //static int c = 0;
-  //printf("freeing expr %d etype %d\n", ++c, expr->etype);
-  switch (expr->etype) {
-    case ValExpr:
-      //static int d = 0;
-      //printf("\tfreeing val expr %d vtype %d\n", ++d, ((Val *)expr->subexprs)->vtype);
-      freeValue(expr->subexprs);
-      break;
-    case IdentExpr:
-      free(expr->subexprs);
-      break;
-    case ListExpr:
-      //freeList(expr->subexprs);
-      freeListWith(expr->subexprs, &freeExpr);
-      break;
-    case BlockExpr:
-      freeScope((Scope *)getExprSubexpr(expr, 0)); // hacky -- maybe wrap getExprSubexpr in getScopeExprScope (?) (would also have to change Scope to ScopeExpr)
-      freeExpr(getExprSubexpr(expr, 1));
-      free(expr->subexprs);
-      break;
-    case ApplyExpr: // fallthrough
-    case DeclExpr: 
-    case FunExpr:
-    case TypedValExpr:
-      freeExpr(getExprSubexpr(expr, 0));
-      freeExpr(getExprSubexpr(expr, 1));
-      free(expr->subexprs);
-      break;
-    case TypeExpr:
-    case ReturnExpr:
-      freeExpr(getExprSubexpr(expr, 0));
-      free(expr->subexprs);
-      break;
-    default:
-      printf("(%s): Unknown or unimplemented expr type %d\n", __func__, expr->etype);
-      break;
-  }
-  free(expr);
-}
-
-void freeExprList(List *list) {
-  if (list == NULL) {
-    printf("Warning (compiler bug): tried to free NULL list. This shouldn't happen.\n");
-    return;
-  }
-  if (list->tail != NULL) {
-    freeExprList(list->tail);
-  }
-  freeExpr(list->head);
-  free(list);
-}
-
-void reverseList(List **list) {
-  if (*list == NULL) return;
-
-  List *prev = NULL;
-  List *curr = *list;
-  List *next = NULL;
-  //size_t size = (*list)->size;
-  while (curr != NULL) {
-    next = curr->tail;
-    curr->tail = prev;
-    prev = curr;
-    curr = next;
-  }
-  *list = prev;
-
-  // while (prev != NULL) {
-  //   prev->size = size--; //set and dec.
-  //   prev = prev->tail;
-  // }
-}
-
-int listSize(List *list) {
-  int size = 0;
-  while (list != NULL) {
-    size++;
-    list = list->tail;
-  }
-  return size;
-}
-
 void map(List *list, void (*f)(Expr *)) {
   while (list != NULL) {
     f(list->head);
@@ -608,7 +120,8 @@ void println(char *str) {
   printf("%s\n", str);
 }
 
-Expr *parseExpr(char *source, size_t *ip);
+
+
 
 Expr *trySpecialForm(char *ident, char *expectIdent, size_t expectArgs,
   List *args, ExprType etype /*, Expr *(*makeExpr)(Expr *, Expr *)*/) {
@@ -750,11 +263,6 @@ Scope *makeLocalScope(Scope *parent) {
   return makeScope(parent, makeTrie());
 }
 
-void freeScope(Scope *scope) {
-  //freeTrie(scope->identifiers);
-  freeTrieWith(scope->identifiers, &freeExpr);
-  free(scope);
-}
 
 char *getIdentExprIdent(Expr *expr) {
   return (char *)expr->subexprs;
@@ -999,18 +507,6 @@ void evalFun(Expr *funExpr, Scope *scope) {
   List *types = getExprSubexpr(typeDefinition, 1)->subexprs;
 
 
-  // printf("ident: %s\n", ident);
-  // printf("types: ");
-  // List *curr = types;
-  // while (curr != NULL) {
-  //   printf("\"");
-  //   printExpr(curr->head);
-  //   printf("\",");
-  //   curr = curr->tail;
-  // }
-  // printf("\n");
-
-
   List *args = NULL;
   Expr *returnType = NULL;
   Scope *localScope = makeLocalScope(scope);
@@ -1173,3 +669,6 @@ int main(char argc, char **argv) {
 // TODO: add indentation to outputted code for readability
 
 // TODO: check evalReturn to make sure arbitrarily nested ifs and blocks word correctly
+
+// TODO: check if nested function definitions are working (I don't think they
+//       should be) and fix them if not
